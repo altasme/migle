@@ -62,5 +62,24 @@ export function NotificationListener() {
     }
   }, [userId, markDmUnread, showToast, clearToast])
 
+  // Belt-and-suspenders: the realtime push above isn't reliably reaching
+  // this listener (same class of issue as the DM thread view), so also
+  // poll for any incoming message newer than the last time the badge was
+  // cleared. RLS already scopes dm_messages to our own threads.
+  useEffect(() => {
+    if (!userId) return
+    const pollId = setInterval(async () => {
+      const { lastClearedAt } = useNotificationStore.getState()
+      const { data } = await supabase
+        .from('dm_messages')
+        .select('id')
+        .neq('sender_id', userId)
+        .gt('created_at', lastClearedAt)
+        .limit(1)
+      if (data && data.length > 0) markDmUnread()
+    }, 5000)
+    return () => clearInterval(pollId)
+  }, [userId, markDmUnread])
+
   return null
 }
