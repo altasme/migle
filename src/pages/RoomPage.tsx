@@ -195,7 +195,7 @@ export function RoomPage() {
         (payload) => {
           const row = payload.new as { id: number; user_id: string; body: string; created_at: string }
           const username = membersRef.current.find((m) => m.user_id === row.user_id)?.username ?? '?'
-          setMessages((prev) => [...prev, { ...row, username }])
+          setMessages((prev) => (prev.some((m) => m.id === row.id) ? prev : [...prev, { ...row, username }]))
         },
       )
       .subscribe()
@@ -257,7 +257,19 @@ export function RoomPage() {
     if (!roomId || !userId || !chatInput.trim()) return
     const body = chatInput.trim()
     setChatInput('')
-    await supabase.from('room_messages').insert({ room_id: roomId, user_id: userId, body })
+    const { data, error } = await supabase
+      .from('room_messages')
+      .insert({ room_id: roomId, user_id: userId, body })
+      .select('id, created_at')
+      .single()
+    if (error || !data) return
+    // Append immediately rather than waiting on the realtime echo — the
+    // postgres_changes handler dedupes by id if it also delivers this row.
+    setMessages((prev) =>
+      prev.some((m) => m.id === data.id)
+        ? prev
+        : [...prev, { id: data.id, user_id: userId, username: me?.username ?? '?', body, created_at: data.created_at }],
+    )
   }
 
   async function leaveRoom() {
