@@ -13,7 +13,9 @@ type ShopItem = {
   price_coins: number | null
 }
 
-const SLOTS = ['body', 'hair_front', 'face', 'top', 'hat'] as const
+// No 'face' slot: LPC bodies come with a face already drawn on, so there's
+// nothing to swap independently for this art style.
+const SLOTS = ['body', 'hair_front', 'top', 'hat'] as const
 
 export function Wardrobe() {
   const navigate = useNavigate()
