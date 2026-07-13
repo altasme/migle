@@ -3,7 +3,11 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
 import { AuthForm } from './components/AuthForm'
 import { UsernameClaim } from './components/UsernameClaim'
+import { AppLayout } from './components/AppLayout'
 import { Home } from './pages/Home'
+import { Rooms } from './pages/Rooms'
+import { Profile } from './pages/Profile'
+import { ComingSoon } from './pages/ComingSoon'
 import { RoomPage } from './pages/RoomPage'
 
 function Centered({ children }: { children: ReactNode }) {
@@ -46,9 +50,41 @@ function AppShell() {
       <Route
         path="/"
         element={
-          <Centered>
+          <AppLayout>
             <Home />
-          </Centered>
+          </AppLayout>
+        }
+      />
+      <Route
+        path="/rooms"
+        element={
+          <AppLayout>
+            <Rooms />
+          </AppLayout>
+        }
+      />
+      <Route
+        path="/chat"
+        element={
+          <AppLayout>
+            <ComingSoon emoji="💬" title="Chat" />
+          </AppLayout>
+        }
+      />
+      <Route
+        path="/friends"
+        element={
+          <AppLayout>
+            <ComingSoon emoji="👥" title="Friends" />
+          </AppLayout>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <AppLayout>
+            <Profile />
+          </AppLayout>
         }
       />
       <Route path="/r/:slug" element={<RoomPage />} />
