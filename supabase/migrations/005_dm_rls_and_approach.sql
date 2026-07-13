@@ -4,15 +4,18 @@
 alter table dm_threads enable row level security;
 alter table dm_messages enable row level security;
 
+drop policy if exists read_own_threads on dm_threads;
 create policy read_own_threads on dm_threads for select
   using (user_a = auth.uid() or user_b = auth.uid());
 
 -- No insert policy: threads are only created via approach_user() below,
 -- so canonical ordering (user_a < user_b) and the approach cost are
 -- always enforced, never trusted to the client.
+drop policy if exists update_own_threads on dm_threads;
 create policy update_own_threads on dm_threads for update
   using (user_a = auth.uid() or user_b = auth.uid());
 
+drop policy if exists read_own_messages on dm_messages;
 create policy read_own_messages on dm_messages for select
   using (exists (
     select 1 from dm_threads t
@@ -20,6 +23,7 @@ create policy read_own_messages on dm_messages for select
       and (t.user_a = auth.uid() or t.user_b = auth.uid())
   ));
 
+drop policy if exists send_own_messages on dm_messages;
 create policy send_own_messages on dm_messages for insert
   with check (
     sender_id = auth.uid()
