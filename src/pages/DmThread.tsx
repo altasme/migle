@@ -62,6 +62,10 @@ export function DmThread() {
       if (!active) return
       setOther(prof)
 
+      await refreshMessages()
+    }
+
+    async function refreshMessages() {
       const { data: msgs } = await supabase
         .from('dm_messages')
         .select('id, sender_id, body, created_at')
@@ -85,8 +89,13 @@ export function DmThread() {
       )
       .subscribe()
 
+    // Belt-and-suspenders: don't depend solely on the realtime push —
+    // poll so the other person's messages show up even if it's flaky.
+    const pollId = setInterval(refreshMessages, 3000)
+
     return () => {
       active = false
+      clearInterval(pollId)
       supabase.removeChannel(channel)
     }
   }, [threadId, userId])

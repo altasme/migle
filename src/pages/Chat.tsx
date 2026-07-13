@@ -8,8 +8,6 @@ type ThreadRow = {
   id: string
   user_a: string
   user_b: string
-  status: string
-  initiator: string
   created_at: string
 }
 
@@ -34,7 +32,7 @@ export function Chat() {
     setLoading(true)
     const { data } = await supabase
       .from('dm_threads')
-      .select('id, user_a, user_b, status, initiator, created_at')
+      .select('id, user_a, user_b, created_at')
       .or(`user_a.eq.${uid},user_b.eq.${uid}`)
       .order('created_at', { ascending: false })
     const rows = (data ?? []) as ThreadRow[]
@@ -64,68 +62,33 @@ export function Chat() {
     setLoading(false)
   }
 
-  const requests = threads.filter((t) => t.status === 'pending' && t.initiator !== userId)
-  const chats = threads.filter((t) => !(t.status === 'pending' && t.initiator !== userId))
-
-  function ThreadRowItem({ t }: { t: ThreadDisplay }) {
-    return (
-      <button
-        onClick={() => navigate(`/dm/${t.id}`)}
-        className="flex w-full items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-left hover:border-purple-600"
-      >
-        <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-sm text-white">
-          <AvatarImage
-            equipped={t.otherEquipped}
-            fallbackLetter={t.otherUsername[0]?.toUpperCase() ?? '?'}
-            className="h-full w-full object-contain"
-          />
-        </div>
-        <span className="text-sm font-medium text-white">@{t.otherUsername}</span>
-        {t.status === 'pending' && t.initiator === userId && (
-          <span className="ml-auto text-xs text-zinc-500">Pending</span>
-        )}
-      </button>
-    )
-  }
-
   return (
-    <div className="flex flex-col gap-6 p-4">
+    <div className="flex flex-col gap-4 p-4">
       <h1 className="text-lg font-semibold text-white">Chat</h1>
 
       {loading ? (
         <p className="text-sm text-zinc-500">Loading…</p>
+      ) : threads.length === 0 ? (
+        <p className="text-sm text-zinc-500">No conversations yet — find someone in Discover.</p>
       ) : (
-        <>
-          {requests.length > 0 && (
-            <section>
-              <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
-                Requests
-              </h2>
-              <div className="flex flex-col gap-2">
-                {requests.map((t) => (
-                  <ThreadRowItem key={t.id} t={t} />
-                ))}
+        <div className="flex flex-col gap-2">
+          {threads.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => navigate(`/dm/${t.id}`)}
+              className="flex w-full items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-left hover:border-purple-600"
+            >
+              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-sm text-white">
+                <AvatarImage
+                  equipped={t.otherEquipped}
+                  fallbackLetter={t.otherUsername[0]?.toUpperCase() ?? '?'}
+                  className="h-full w-full object-contain"
+                />
               </div>
-            </section>
-          )}
-
-          <section>
-            <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
-              Chats
-            </h2>
-            {chats.length === 0 ? (
-              <p className="text-sm text-zinc-500">
-                No conversations yet — find someone in Discover.
-              </p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {chats.map((t) => (
-                  <ThreadRowItem key={t.id} t={t} />
-                ))}
-              </div>
-            )}
-          </section>
-        </>
+              <span className="text-sm font-medium text-white">@{t.otherUsername}</span>
+            </button>
+          ))}
+        </div>
       )}
     </div>
   )
