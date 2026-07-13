@@ -12,9 +12,14 @@ export function useCompositedAvatar(equipped: Record<string, string> | null | un
       return
     }
     let cancelled = false
-    compositeAvatar(ids).then((dataUrl) => {
-      if (!cancelled) setUrl(dataUrl)
-    })
+    setUrl(null)
+    compositeAvatar(ids)
+      .then((dataUrl) => {
+        if (!cancelled) setUrl(dataUrl)
+      })
+      .catch((err) => {
+        if (!cancelled) console.error('Avatar composite failed:', err)
+      })
     return () => {
       cancelled = true
     }

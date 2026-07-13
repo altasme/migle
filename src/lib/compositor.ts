@@ -55,6 +55,12 @@ async function render(ids: string[]): Promise<string> {
   const hiddenSlots = new Set(items.flatMap((i) => i.hides_slots ?? []))
   const visible = items.filter((i) => !hiddenSlots.has(i.slot)).sort((a, b) => a.z_index - b.z_index)
 
+  // No matching rows (e.g. a stale id, or the fetch failed) — fail loudly
+  // instead of silently caching a blank transparent image forever.
+  if (visible.length === 0) {
+    throw new Error(`No cosmetic layers resolved for ids: ${ids.join(',')}`)
+  }
+
   const canvas = document.createElement('canvas')
   canvas.width = CANVAS_SIZE
   canvas.height = CANVAS_SIZE
@@ -72,7 +78,11 @@ async function render(ids: string[]): Promise<string> {
 export function compositeAvatar(ids: string[]): Promise<string> {
   const key = hashEquipped(ids)
   if (!compositeCache.has(key)) {
-    compositeCache.set(key, render(ids))
+    const promise = render(ids)
+    // Don't let a failed render (bad asset, transient network error) get
+    // stuck in the cache forever — remove it so the next attempt retries.
+    promise.catch(() => compositeCache.delete(key))
+    compositeCache.set(key, promise)
   }
   return compositeCache.get(key)!
 }
