@@ -9,6 +9,7 @@ import { Rooms } from './pages/Rooms'
 import { Profile } from './pages/Profile'
 import { ComingSoon } from './pages/ComingSoon'
 import { RoomPage } from './pages/RoomPage'
+import { Wardrobe } from './pages/Wardrobe'
 
 function Centered({ children }: { children: ReactNode }) {
   return <div className="flex min-h-svh items-center justify-center">{children}</div>
@@ -88,6 +89,7 @@ function AppShell() {
         }
       />
       <Route path="/r/:slug" element={<RoomPage />} />
+      <Route path="/wardrobe" element={<Wardrobe />} />
     </Routes>
   )
 }

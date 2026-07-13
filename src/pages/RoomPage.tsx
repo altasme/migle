@@ -4,6 +4,7 @@ import { Room, RoomEvent, Track } from 'livekit-client'
 import { supabase } from '../lib/supabase'
 import { fetchLiveKitToken, LIVEKIT_URL } from '../lib/livekit'
 import { useAuthStore } from '../store/authStore'
+import { AvatarImage } from '../components/AvatarImage'
 
 type RoomRow = {
   id: string
@@ -18,6 +19,7 @@ type Member = {
   seat_index: number | null
   is_muted: boolean
   username: string
+  equipped: Record<string, string>
 }
 
 type ChatMessage = {
@@ -32,7 +34,7 @@ type RoomMemberRow = {
   user_id: string
   seat_index: number | null
   is_muted: boolean
-  profiles: { username: string } | null
+  profiles: { username: string; equipped: Record<string, string> } | null
 }
 
 type RoomMessageRow = {
@@ -88,7 +90,7 @@ export function RoomPage() {
   async function loadMembers(rid: string) {
     const { data } = await supabase
       .from('room_members')
-      .select('user_id, seat_index, is_muted, profiles(username)')
+      .select('user_id, seat_index, is_muted, profiles(username, equipped)')
       .eq('room_id', rid)
     const rows = (data ?? []) as unknown as RoomMemberRow[]
     setMembers(
@@ -97,6 +99,7 @@ export function RoomPage() {
         seat_index: r.seat_index,
         is_muted: r.is_muted,
         username: r.profiles?.username ?? '?',
+        equipped: r.profiles?.equipped ?? {},
       })),
     )
   }
@@ -311,7 +314,7 @@ export function RoomPage() {
               className="flex flex-col items-center gap-1"
             >
               <div
-                className={`flex h-14 w-14 items-center justify-center rounded-full border-2 text-white ${
+                className={`flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border-2 text-white ${
                   occupant
                     ? isMe
                       ? 'border-purple-500 bg-purple-900'
@@ -319,7 +322,15 @@ export function RoomPage() {
                     : 'border-dashed border-zinc-700 bg-zinc-900 text-zinc-600'
                 }`}
               >
-                {occupant ? occupant.username[0]?.toUpperCase() : '+'}
+                {occupant ? (
+                  <AvatarImage
+                    equipped={occupant.equipped}
+                    fallbackLetter={occupant.username[0]?.toUpperCase() ?? '?'}
+                    className="h-full w-full object-contain"
+                  />
+                ) : (
+                  '+'
+                )}
               </div>
               <span className="max-w-14 truncate text-xs text-zinc-400">
                 {occupant ? occupant.username : 'empty'}
