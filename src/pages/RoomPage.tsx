@@ -224,6 +224,8 @@ export function RoomPage() {
       setSeatError(error.code === '23505' ? 'That seat was just taken.' : error.message)
       return
     }
+    // Don't wait on the realtime round-trip for our own action — refresh now.
+    await loadMembers(roomId)
     await connectVoice(slug)
   }
 
@@ -234,6 +236,7 @@ export function RoomPage() {
       .update({ seat_index: null, is_muted: false })
       .eq('room_id', roomId)
       .eq('user_id', userId)
+    await loadMembers(roomId)
     await connectVoice(slug)
   }
 
@@ -245,6 +248,7 @@ export function RoomPage() {
       .update({ is_muted: next })
       .eq('room_id', roomId)
       .eq('user_id', userId)
+    await loadMembers(roomId)
     await livekitRoomRef.current?.localParticipant.setMicrophoneEnabled(!next)
   }
 
