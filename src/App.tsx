@@ -1,28 +1,16 @@
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
 import { AuthForm } from './components/AuthForm'
 import { UsernameClaim } from './components/UsernameClaim'
+import { Home } from './pages/Home'
+import { RoomPage } from './pages/RoomPage'
 
-function Home() {
-  const profile = useAuthStore((s) => s.profile)
-  const signOut = useAuthStore((s) => s.signOut)
-
-  return (
-    <div className="mx-auto flex w-full max-w-sm flex-col gap-4 p-6 text-center">
-      <h1 className="text-2xl font-semibold text-white">Welcome, @{profile?.username}</h1>
-      <p className="text-sm text-zinc-400">You're signed in and your profile is set up.</p>
-      <button
-        type="button"
-        onClick={signOut}
-        className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:text-white"
-      >
-        Log out
-      </button>
-    </div>
-  )
+function Centered({ children }: { children: ReactNode }) {
+  return <div className="flex min-h-svh items-center justify-center">{children}</div>
 }
 
-function App() {
+function AppShell() {
   const { session, profile, loading, init } = useAuthStore()
 
   useEffect(() => {
@@ -31,16 +19,50 @@ function App() {
 
   if (loading) {
     return (
-      <div className="flex min-h-svh items-center justify-center bg-zinc-950">
+      <Centered>
         <p className="text-zinc-400">Loading…</p>
-      </div>
+      </Centered>
+    )
+  }
+
+  if (!session) {
+    return (
+      <Centered>
+        <AuthForm />
+      </Centered>
+    )
+  }
+
+  if (!profile) {
+    return (
+      <Centered>
+        <UsernameClaim />
+      </Centered>
     )
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-zinc-950">
-      {!session ? <AuthForm /> : !profile ? <UsernameClaim /> : <Home />}
-    </div>
+    <Routes>
+      <Route
+        path="/"
+        element={
+          <Centered>
+            <Home />
+          </Centered>
+        }
+      />
+      <Route path="/r/:slug" element={<RoomPage />} />
+    </Routes>
+  )
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <div className="min-h-svh bg-zinc-950">
+        <AppShell />
+      </div>
+    </BrowserRouter>
   )
 }
 
