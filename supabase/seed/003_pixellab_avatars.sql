@@ -1,0 +1,67 @@
+-- New art direction: full pre-rendered chibi looks (PixelLab-generated),
+-- hair/top/shoes baked into a single 'body' image rather than separate
+-- swappable layers. Replaces the LPC layered system entirely for the
+-- primary look. Old layered items are deactivated, not deleted, so
+-- anyone still equipped with one keeps rendering correctly.
+update cosmetic_items set is_active = false
+  where id in (
+    'lpc_body_m', 'lpc_body_f',
+    'lpc_hair_m_01','lpc_hair_m_02','lpc_hair_m_03','lpc_hair_m_04',
+    'lpc_hair_m_05','lpc_hair_m_06','lpc_hair_m_07','lpc_hair_m_08',
+    'lpc_hair_f_01','lpc_hair_f_02','lpc_hair_f_03','lpc_hair_f_04',
+    'lpc_hair_f_05','lpc_hair_f_06','lpc_hair_f_07',
+    'face_01','face_02','face_03','face_04',
+    'top_01','top_02','top_03','top_04',
+    'hat_01','hat_02','hat_03'
+  );
+
+insert into cosmetic_items (id, name, slot, z_index, asset_path, price_coins) values
+  ('av_male_hoodie_01', 'Street 1', 'body', 20, '/cos/av_male_hoodie_01.png', 0),
+  ('av_male_hoodie_02', 'Street 2', 'body', 20, '/cos/av_male_hoodie_02.png', 0),
+  ('av_male_hoodie_03', 'Street 3', 'body', 20, '/cos/av_male_hoodie_03.png', 0),
+  ('av_male_hoodie_04', 'Street 4', 'body', 20, '/cos/av_male_hoodie_04.png', 0),
+  ('av_male_hoodie_05', 'Street 5', 'body', 20, '/cos/av_male_hoodie_05.png', 0),
+  ('av_male_hoodie_06', 'Street 6', 'body', 20, '/cos/av_male_hoodie_06.png', 0),
+  ('av_male_hoodie_07', 'Street 7', 'body', 20, '/cos/av_male_hoodie_07.png', 0),
+  ('av_male_hoodie_08', 'Street 8', 'body', 20, '/cos/av_male_hoodie_08.png', 0),
+  ('av_male_hoodie_09', 'Street 9', 'body', 20, '/cos/av_male_hoodie_09.png', 0),
+  ('av_male_hoodie_10', 'Street 10', 'body', 20, '/cos/av_male_hoodie_10.png', 0),
+  ('av_male_hoodie_11', 'Street 11', 'body', 20, '/cos/av_male_hoodie_11.png', 0),
+  ('av_male_hoodie_12', 'Street 12', 'body', 20, '/cos/av_male_hoodie_12.png', 0),
+  ('av_male_hoodie_13', 'Street 13', 'body', 20, '/cos/av_male_hoodie_13.png', 0),
+  ('av_male_hoodie_14', 'Street 14', 'body', 20, '/cos/av_male_hoodie_14.png', 0),
+  ('av_male_hoodie_15', 'Street 15', 'body', 20, '/cos/av_male_hoodie_15.png', 0),
+  ('av_male_hoodie_16', 'Street 16', 'body', 20, '/cos/av_male_hoodie_16.png', 0),
+  ('av_male_dark_01', 'Shadow 1', 'body', 20, '/cos/av_male_dark_01.png', 0),
+  ('av_male_dark_02', 'Shadow 2', 'body', 20, '/cos/av_male_dark_02.png', 0),
+  ('av_male_dark_03', 'Shadow 3', 'body', 20, '/cos/av_male_dark_03.png', 0),
+  ('av_male_dark_04', 'Shadow 4', 'body', 20, '/cos/av_male_dark_04.png', 0),
+  ('av_male_dark_05', 'Shadow 5', 'body', 20, '/cos/av_male_dark_05.png', 0),
+  ('av_male_dark_06', 'Shadow 6', 'body', 20, '/cos/av_male_dark_06.png', 0),
+  ('av_male_dark_07', 'Shadow 7', 'body', 20, '/cos/av_male_dark_07.png', 0),
+  ('av_male_dark_08', 'Shadow 8', 'body', 20, '/cos/av_male_dark_08.png', 0),
+  ('av_male_dark_09', 'Shadow 9', 'body', 20, '/cos/av_male_dark_09.png', 0),
+  ('av_male_dark_10', 'Shadow 10', 'body', 20, '/cos/av_male_dark_10.png', 0),
+  ('av_male_dark_11', 'Shadow 11', 'body', 20, '/cos/av_male_dark_11.png', 0),
+  ('av_male_dark_12', 'Shadow 12', 'body', 20, '/cos/av_male_dark_12.png', 0),
+  ('av_male_dark_13', 'Shadow 13', 'body', 20, '/cos/av_male_dark_13.png', 0),
+  ('av_male_dark_14', 'Shadow 14', 'body', 20, '/cos/av_male_dark_14.png', 0),
+  ('av_male_dark_15', 'Shadow 15', 'body', 20, '/cos/av_male_dark_15.png', 0),
+  ('av_male_dark_16', 'Shadow 16', 'body', 20, '/cos/av_male_dark_16.png', 0),
+  ('av_female_pink_01', 'Sakura 1', 'body', 20, '/cos/av_female_pink_01.png', 0),
+  ('av_female_pink_02', 'Sakura 2', 'body', 20, '/cos/av_female_pink_02.png', 0),
+  ('av_female_pink_03', 'Sakura 3', 'body', 20, '/cos/av_female_pink_03.png', 0),
+  ('av_female_pink_04', 'Sakura 4', 'body', 20, '/cos/av_female_pink_04.png', 0),
+  ('av_female_pink_05', 'Sakura 5', 'body', 20, '/cos/av_female_pink_05.png', 0),
+  ('av_female_pink_06', 'Sakura 6', 'body', 20, '/cos/av_female_pink_06.png', 0),
+  ('av_female_pink_07', 'Sakura 7', 'body', 20, '/cos/av_female_pink_07.png', 0),
+  ('av_female_pink_08', 'Sakura 8', 'body', 20, '/cos/av_female_pink_08.png', 0),
+  ('av_female_pink_09', 'Sakura 9', 'body', 20, '/cos/av_female_pink_09.png', 0),
+  ('av_female_pink_10', 'Sakura 10', 'body', 20, '/cos/av_female_pink_10.png', 0),
+  ('av_female_pink_11', 'Sakura 11', 'body', 20, '/cos/av_female_pink_11.png', 0),
+  ('av_female_pink_12', 'Sakura 12', 'body', 20, '/cos/av_female_pink_12.png', 0),
+  ('av_female_pink_13', 'Sakura 13', 'body', 20, '/cos/av_female_pink_13.png', 0),
+  ('av_female_pink_14', 'Sakura 14', 'body', 20, '/cos/av_female_pink_14.png', 0),
+  ('av_female_pink_15', 'Sakura 15', 'body', 20, '/cos/av_female_pink_15.png', 0),
+  ('av_female_pink_16', 'Sakura 16', 'body', 20, '/cos/av_female_pink_16.png', 0)
+on conflict (id) do nothing;
