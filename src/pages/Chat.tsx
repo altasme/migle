@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
+import { useNotificationStore } from '../store/notificationStore'
 import { AvatarImage } from '../components/AvatarImage'
 
 type ThreadRow = {
@@ -20,8 +21,13 @@ type ThreadDisplay = ThreadRow & {
 export function Chat() {
   const navigate = useNavigate()
   const userId = useAuthStore((s) => s.session?.user.id)
+  const clearDmUnread = useNotificationStore((s) => s.clearDmUnread)
   const [threads, setThreads] = useState<ThreadDisplay[]>([])
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    clearDmUnread()
+  }, [clearDmUnread])
 
   useEffect(() => {
     if (!userId) return

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
+import { useNotificationStore } from '../store/notificationStore'
 import { AvatarImage } from '../components/AvatarImage'
 
 type ThreadRow = {
@@ -23,6 +24,7 @@ export function DmThread() {
   const { threadId } = useParams<{ threadId: string }>()
   const navigate = useNavigate()
   const userId = useAuthStore((s) => s.session?.user.id)
+  const clearDmUnread = useNotificationStore((s) => s.clearDmUnread)
 
   const [thread, setThread] = useState<ThreadRow | 'not-found' | null>(null)
   const [other, setOther] = useState<{ username: string; equipped: Record<string, string> } | null>(
@@ -31,6 +33,10 @@ export function DmThread() {
   const [messages, setMessages] = useState<DmMessage[]>([])
   const [input, setInput] = useState('')
   const chatEndRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    clearDmUnread()
+  }, [clearDmUnread])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ block: 'end' })
