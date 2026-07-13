@@ -5,7 +5,7 @@ const tabs = [
   { to: '/', label: 'Home', Icon: HomeIcon, end: true },
   { to: '/rooms', label: 'Rooms', Icon: RoomsIcon, end: false },
   { to: '/chat', label: 'Chat', Icon: ChatIcon, end: false },
-  { to: '/friends', label: 'Friends', Icon: FriendsIcon, end: false },
+  { to: '/discover', label: 'Discover', Icon: FriendsIcon, end: false },
   { to: '/profile', label: 'Profile', Icon: ProfileIcon, end: false },
 ]
 

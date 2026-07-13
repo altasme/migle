@@ -7,9 +7,11 @@ import { AppLayout } from './components/AppLayout'
 import { Home } from './pages/Home'
 import { Rooms } from './pages/Rooms'
 import { Profile } from './pages/Profile'
-import { ComingSoon } from './pages/ComingSoon'
 import { RoomPage } from './pages/RoomPage'
 import { Wardrobe } from './pages/Wardrobe'
+import { Discover } from './pages/Discover'
+import { Chat } from './pages/Chat'
+import { DmThread } from './pages/DmThread'
 
 function Centered({ children }: { children: ReactNode }) {
   return <div className="flex min-h-svh items-center justify-center">{children}</div>
@@ -68,15 +70,15 @@ function AppShell() {
         path="/chat"
         element={
           <AppLayout>
-            <ComingSoon emoji="💬" title="Chat" />
+            <Chat />
           </AppLayout>
         }
       />
       <Route
-        path="/friends"
+        path="/discover"
         element={
           <AppLayout>
-            <ComingSoon emoji="👥" title="Friends" />
+            <Discover />
           </AppLayout>
         }
       />
@@ -90,6 +92,7 @@ function AppShell() {
       />
       <Route path="/r/:slug" element={<RoomPage />} />
       <Route path="/wardrobe" element={<Wardrobe />} />
+      <Route path="/dm/:threadId" element={<DmThread />} />
     </Routes>
   )
 }
