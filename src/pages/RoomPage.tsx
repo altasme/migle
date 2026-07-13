@@ -198,7 +198,9 @@ export function RoomPage() {
           setMessages((prev) => (prev.some((m) => m.id === row.id) ? prev : [...prev, { ...row, username }]))
         },
       )
-      .subscribe()
+      .subscribe((status, err) => {
+        console.log('[realtime] channel status:', status, err ?? '')
+      })
 
     return () => {
       active = false
