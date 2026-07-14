@@ -83,6 +83,9 @@ export function Profile() {
       <Link to="/leaderboard" className="text-sm text-zinc-400 hover:text-white">
         🏆 CP Leaderboard
       </Link>
+      <Link to="/blocked" className="text-sm text-zinc-400 hover:text-white">
+        🚫 Blocked users
+      </Link>
       <button
         onClick={signOut}
         className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:text-white"
