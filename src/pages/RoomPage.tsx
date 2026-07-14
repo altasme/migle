@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Room, RoomEvent, Track } from 'livekit-client'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
-import { fetchLiveKitToken, LIVEKIT_URL } from '../lib/livekit'
+import { fetchLiveKitToken, kickFromLiveKit, LIVEKIT_URL } from '../lib/livekit'
 import { useAuthStore } from '../store/authStore'
 import { AvatarImage } from '../components/AvatarImage'
 import { SafetyMenu } from '../components/SafetyMenu'
@@ -372,6 +372,13 @@ export function RoomPage() {
     if (!roomId) return
     await supabase.rpc('owner_kick_member', { p_room: roomId, p_user: targetUserId })
     await loadMembers(roomId)
+    // Hard-enforce it server-side too — don't rely solely on the kicked
+    // user's own client noticing the DB change and self-disconnecting.
+    try {
+      await kickFromLiveKit(roomId, targetUserId)
+    } catch (err) {
+      console.error('LiveKit kick failed:', err)
+    }
   }
 
   async function sendMessage(e: React.FormEvent) {

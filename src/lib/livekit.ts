@@ -12,3 +12,10 @@ export async function fetchLiveKitToken(roomSlug: string) {
 }
 
 export const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL as string | undefined
+
+export async function kickFromLiveKit(roomId: string, targetUserId: string) {
+  const { error } = await supabase.functions.invoke('livekit-kick', {
+    body: { roomId, targetUserId },
+  })
+  if (error) throw error
+}
