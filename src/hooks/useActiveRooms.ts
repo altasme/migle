@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
+import { getBlockedPairIds } from '../lib/safety'
 
 export type RoomRow = {
   id: string
@@ -16,15 +17,19 @@ export function useActiveRooms() {
   const [loading, setLoading] = useState(true)
 
   const refresh = useCallback(async () => {
+    if (!userId) return
     setLoading(true)
-    const { data } = await supabase
-      .from('rooms')
-      .select('id, slug, name, topic, owner_id')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-    setRooms(data ?? [])
+    const [{ data }, blockedIds] = await Promise.all([
+      supabase
+        .from('rooms')
+        .select('id, slug, name, topic, owner_id')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false }),
+      getBlockedPairIds(userId),
+    ])
+    setRooms((data ?? []).filter((r) => !blockedIds.has(r.owner_id)))
     setLoading(false)
-  }, [])
+  }, [userId])
 
   useEffect(() => {
     if (userId) refresh()

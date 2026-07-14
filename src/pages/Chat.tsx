@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/authStore'
 import { useNotificationStore } from '../store/notificationStore'
 import { refreshUnreadCounts } from '../components/NotificationListener'
 import { AvatarImage } from '../components/AvatarImage'
+import { getBlockedPairIds } from '../lib/safety'
 
 type ThreadRow = {
   id: string
@@ -47,22 +48,24 @@ export function Chat() {
       return
     }
     const otherIds = rows.map((r) => (r.user_a === uid ? r.user_b : r.user_a))
-    const { data: profs } = await supabase
-      .from('profiles')
-      .select('id, username, equipped')
-      .in('id', otherIds)
+    const [{ data: profs }, blockedIds] = await Promise.all([
+      supabase.from('profiles').select('id, username, equipped').in('id', otherIds),
+      getBlockedPairIds(uid),
+    ])
     const profMap = new Map((profs ?? []).map((p) => [p.id, p]))
     setThreads(
-      rows.map((r) => {
-        const otherId = r.user_a === uid ? r.user_b : r.user_a
-        const prof = profMap.get(otherId)
-        return {
-          ...r,
-          otherId,
-          otherUsername: prof?.username ?? '?',
-          otherEquipped: prof?.equipped ?? {},
-        }
-      }),
+      rows
+        .map((r) => {
+          const otherId = r.user_a === uid ? r.user_b : r.user_a
+          const prof = profMap.get(otherId)
+          return {
+            ...r,
+            otherId,
+            otherUsername: prof?.username ?? '?',
+            otherEquipped: prof?.equipped ?? {},
+          }
+        })
+        .filter((t) => !blockedIds.has(t.otherId)),
     )
     setLoading(false)
   }

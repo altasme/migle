@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { AvatarImage } from '../components/AvatarImage'
+import { getBlockedPairIds } from '../lib/safety'
 
 type Profile = {
   id: string
@@ -20,17 +21,17 @@ export function Discover() {
 
   useEffect(() => {
     if (!userId) return
+    const uid = userId
     async function load() {
-      const [{ data: profs }, { data: blocked }] = await Promise.all([
+      const [{ data: profs }, blockedIds] = await Promise.all([
         supabase
           .from('profiles')
           .select('id, username, equipped')
-          .neq('id', userId)
+          .neq('id', uid)
           .order('last_seen_at', { ascending: false })
           .limit(50),
-        supabase.from('blocks').select('blocked_id').eq('blocker_id', userId),
+        getBlockedPairIds(uid),
       ])
-      const blockedIds = new Set((blocked ?? []).map((b) => b.blocked_id))
       setProfiles((profs ?? []).filter((p) => !blockedIds.has(p.id)))
       setLoading(false)
     }
