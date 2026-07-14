@@ -94,6 +94,7 @@ export function RoomPage() {
   const [giftCatalog, setGiftCatalog] = useState<GiftCatalogItem[]>([])
   const [supporters, setSupporters] = useState<Supporter[]>([])
   const [giftModalOpen, setGiftModalOpen] = useState(false)
+  const [giftTab, setGiftTab] = useState<'gifts' | 'rings'>('gifts')
   const [giftRecipientId, setGiftRecipientId] = useState<string | null>(null)
   const [sendingGift, setSendingGift] = useState(false)
   const [giftSendError, setGiftSendError] = useState<string | null>(null)
@@ -587,41 +588,47 @@ export function RoomPage() {
               )}
             </div>
 
-            {giftCatalog.some((g) => g.id === 'ring') && (
-              <>
-                <p className="mb-1 text-xs font-medium text-pink-400">💍 Rings</p>
-                <div className="mb-4 grid grid-cols-3 gap-2">
-                  {giftCatalog
-                    .filter((g) => g.id === 'ring')
-                    .map((g) => (
-                      <button
-                        key={g.id}
-                        onClick={() => sendGift(g.id)}
-                        disabled={!giftRecipientId || sendingGift}
-                        className="flex flex-col items-center gap-1 rounded-lg border-2 border-pink-800 bg-pink-950/30 p-2 disabled:opacity-40"
-                      >
-                        <span className="text-2xl">{GIFT_EMOJI[g.id] ?? '💍'}</span>
-                        <span className="text-xs text-pink-200">{g.name}</span>
-                        <span className="text-xs text-yellow-400">🪙 {g.price_coins}</span>
-                      </button>
-                    ))}
-                </div>
-              </>
-            )}
+            <div className="mb-3 flex gap-2">
+              <button
+                onClick={() => setGiftTab('gifts')}
+                className={`flex-1 rounded-lg border-2 py-1.5 text-sm font-medium ${
+                  giftTab === 'gifts'
+                    ? 'border-purple-500 text-white'
+                    : 'border-zinc-800 text-zinc-500'
+                }`}
+              >
+                🎁 Gifts
+              </button>
+              <button
+                onClick={() => setGiftTab('rings')}
+                className={`flex-1 rounded-lg border-2 py-1.5 text-sm font-medium ${
+                  giftTab === 'rings'
+                    ? 'border-pink-500 text-white'
+                    : 'border-zinc-800 text-zinc-500'
+                }`}
+              >
+                💍 Rings
+              </button>
+            </div>
 
-            <p className="mb-1 text-xs font-medium text-zinc-500">Gift</p>
             <div className="grid grid-cols-3 gap-2">
               {giftCatalog
-                .filter((g) => g.id !== 'ring')
+                .filter((g) => (giftTab === 'rings' ? g.id === 'ring' : g.id !== 'ring'))
                 .map((g) => (
                   <button
                     key={g.id}
                     onClick={() => sendGift(g.id)}
                     disabled={!giftRecipientId || sendingGift}
-                    className="flex flex-col items-center gap-1 rounded-lg border-2 border-zinc-800 p-2 disabled:opacity-40"
+                    className={`flex flex-col items-center gap-1 rounded-lg border-2 p-2 disabled:opacity-40 ${
+                      giftTab === 'rings'
+                        ? 'border-pink-800 bg-pink-950/30'
+                        : 'border-zinc-800'
+                    }`}
                   >
-                    <span className="text-2xl">{GIFT_EMOJI[g.id] ?? '🎁'}</span>
-                    <span className="text-xs text-zinc-300">{g.name}</span>
+                    <span className="text-2xl">{GIFT_EMOJI[g.id] ?? (giftTab === 'rings' ? '💍' : '🎁')}</span>
+                    <span className={`text-xs ${giftTab === 'rings' ? 'text-pink-200' : 'text-zinc-300'}`}>
+                      {g.name}
+                    </span>
                     <span className="text-xs text-yellow-400">🪙 {g.price_coins}</span>
                   </button>
                 ))}
