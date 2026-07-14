@@ -1,4 +1,3 @@
-import { Logo } from './Logo'
 import { AuthScene } from './AuthScene'
 import { OAuthRow } from './OAuthRow'
 
@@ -8,9 +7,8 @@ export function AuthLanding({ onPick }: { onPick: (mode: 'signup' | 'login') => 
       <AuthScene />
 
       <div className="relative z-10 flex flex-col items-center gap-1 px-6 pb-8 pt-24 text-center">
-        <Logo size={72} />
-        <h1 className="mt-2 text-3xl font-bold text-white">Mingle</h1>
-        <p className="text-sm text-zinc-300">Meet. Chat. Play. Belong.</p>
+        <img src="/logo.png" alt="Mingle" className="h-28 w-28" />
+        <p className="mt-1 text-sm text-zinc-300">Meet. Chat. Play. Belong.</p>
       </div>
 
       <div className="relative z-10 flex flex-col gap-4 px-6 pb-10">
