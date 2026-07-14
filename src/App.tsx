@@ -14,6 +14,7 @@ import { Chat } from './pages/Chat'
 import { DmThread } from './pages/DmThread'
 import { Leaderboard } from './pages/Leaderboard'
 import { BlockedUsers } from './pages/BlockedUsers'
+import { AdminReports } from './pages/AdminReports'
 
 function Centered({ children }: { children: ReactNode }) {
   return <div className="flex min-h-svh items-center justify-center">{children}</div>
@@ -97,6 +98,7 @@ function AppShell() {
       <Route path="/dm/:threadId" element={<DmThread />} />
       <Route path="/leaderboard" element={<Leaderboard />} />
       <Route path="/blocked" element={<BlockedUsers />} />
+      <Route path="/admin/reports" element={<AdminReports />} />
     </Routes>
   )
 }
