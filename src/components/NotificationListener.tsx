@@ -55,7 +55,9 @@ export function NotificationListener() {
           setTimeout(() => clearToast(), 4000)
         },
       )
-      .subscribe()
+      .subscribe((status, err) => {
+        console.log('[notify] channel status:', status, err ?? '')
+      })
 
     return () => {
       supabase.removeChannel(channel)
@@ -70,12 +72,13 @@ export function NotificationListener() {
     if (!userId) return
     const pollId = setInterval(async () => {
       const { lastClearedAt } = useNotificationStore.getState()
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('dm_messages')
         .select('id')
         .neq('sender_id', userId)
         .gt('created_at', lastClearedAt)
         .limit(1)
+      console.log('[notify] poll check:', { lastClearedAt, found: data?.length ?? 0, error })
       if (data && data.length > 0) markDmUnread()
     }, 5000)
     return () => clearInterval(pollId)
