@@ -1,7 +1,8 @@
 import { useEffect, type ReactNode } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
-import { AuthForm } from './components/AuthForm'
+import { AuthGate } from './components/AuthGate'
+import { SplashScreen } from './components/SplashScreen'
 import { UsernameClaim } from './components/UsernameClaim'
 import { AppLayout } from './components/AppLayout'
 import { Home } from './pages/Home'
@@ -28,19 +29,11 @@ function AppShell() {
   }, [init])
 
   if (loading) {
-    return (
-      <Centered>
-        <p className="text-zinc-400">Loading…</p>
-      </Centered>
-    )
+    return <SplashScreen />
   }
 
   if (!session) {
-    return (
-      <Centered>
-        <AuthForm />
-      </Centered>
-    )
+    return <AuthGate />
   }
 
   if (!profile) {
