@@ -587,20 +587,44 @@ export function RoomPage() {
               )}
             </div>
 
+            {giftCatalog.some((g) => g.id === 'ring') && (
+              <>
+                <p className="mb-1 text-xs font-medium text-pink-400">💍 Rings</p>
+                <div className="mb-4 grid grid-cols-3 gap-2">
+                  {giftCatalog
+                    .filter((g) => g.id === 'ring')
+                    .map((g) => (
+                      <button
+                        key={g.id}
+                        onClick={() => sendGift(g.id)}
+                        disabled={!giftRecipientId || sendingGift}
+                        className="flex flex-col items-center gap-1 rounded-lg border-2 border-pink-800 bg-pink-950/30 p-2 disabled:opacity-40"
+                      >
+                        <span className="text-2xl">{GIFT_EMOJI[g.id] ?? '💍'}</span>
+                        <span className="text-xs text-pink-200">{g.name}</span>
+                        <span className="text-xs text-yellow-400">🪙 {g.price_coins}</span>
+                      </button>
+                    ))}
+                </div>
+              </>
+            )}
+
             <p className="mb-1 text-xs font-medium text-zinc-500">Gift</p>
             <div className="grid grid-cols-3 gap-2">
-              {giftCatalog.map((g) => (
-                <button
-                  key={g.id}
-                  onClick={() => sendGift(g.id)}
-                  disabled={!giftRecipientId || sendingGift}
-                  className="flex flex-col items-center gap-1 rounded-lg border-2 border-zinc-800 p-2 disabled:opacity-40"
-                >
-                  <span className="text-2xl">{GIFT_EMOJI[g.id] ?? '🎁'}</span>
-                  <span className="text-xs text-zinc-300">{g.name}</span>
-                  <span className="text-xs text-yellow-400">🪙 {g.price_coins}</span>
-                </button>
-              ))}
+              {giftCatalog
+                .filter((g) => g.id !== 'ring')
+                .map((g) => (
+                  <button
+                    key={g.id}
+                    onClick={() => sendGift(g.id)}
+                    disabled={!giftRecipientId || sendingGift}
+                    className="flex flex-col items-center gap-1 rounded-lg border-2 border-zinc-800 p-2 disabled:opacity-40"
+                  >
+                    <span className="text-2xl">{GIFT_EMOJI[g.id] ?? '🎁'}</span>
+                    <span className="text-xs text-zinc-300">{g.name}</span>
+                    <span className="text-xs text-yellow-400">🪙 {g.price_coins}</span>
+                  </button>
+                ))}
             </div>
 
             {giftSendError && <p className="mt-3 text-sm text-red-400">{giftSendError}</p>}
