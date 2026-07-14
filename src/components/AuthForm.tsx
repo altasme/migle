@@ -1,8 +1,14 @@
 import { useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 
-export function AuthForm() {
-  const [mode, setMode] = useState<'signup' | 'login'>('signup')
+export function AuthForm({
+  initialMode = 'signup',
+  onBack,
+}: {
+  initialMode?: 'signup' | 'login'
+  onBack?: () => void
+}) {
+  const [mode, setMode] = useState<'signup' | 'login'>(initialMode)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -32,6 +38,15 @@ export function AuthForm() {
 
   return (
     <div className="mx-auto flex w-full max-w-sm flex-col gap-4 p-6">
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="self-start text-sm text-zinc-400 hover:text-white"
+        >
+          ← Back
+        </button>
+      )}
       <h1 className="text-2xl font-semibold text-white">
         {mode === 'signup' ? 'Create your account' : 'Log in'}
       </h1>
