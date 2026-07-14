@@ -24,7 +24,7 @@ export function DmThread() {
   const { threadId } = useParams<{ threadId: string }>()
   const navigate = useNavigate()
   const userId = useAuthStore((s) => s.session?.user.id)
-  const clearDmUnread = useNotificationStore((s) => s.clearDmUnread)
+  const clearThreadUnread = useNotificationStore((s) => s.clearThreadUnread)
 
   const [thread, setThread] = useState<ThreadRow | 'not-found' | null>(null)
   const [other, setOther] = useState<{ username: string; equipped: Record<string, string> } | null>(
@@ -35,8 +35,8 @@ export function DmThread() {
   const chatEndRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
-    clearDmUnread()
-  }, [clearDmUnread])
+    if (threadId) clearThreadUnread(threadId)
+  }, [threadId, clearThreadUnread])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ block: 'end' })

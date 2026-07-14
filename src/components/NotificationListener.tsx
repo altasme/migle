@@ -13,13 +13,15 @@ const GIFT_EMOJI: Record<string, string> = {
 }
 
 // App-wide listener for things that should notify you no matter which
-// screen you're on: a new DM (badges the Chat tab) or a gift sent to you
-// (toast). Mounted once in AppLayout, so it's live on Home/Rooms/Chat/
-// Discover/Profile but not inside a Room or a DM thread — those screens
-// already show gifts/messages directly, live, so there's nothing to miss.
+// screen you're on: a new DM (per-thread unread count) or a gift sent to
+// you (toast). Mounted once in AppLayout, so it's live on Home/Rooms/
+// Chat/Discover/Profile but not inside a Room or a DM thread — those
+// screens already show gifts/messages directly, live, so there's
+// nothing to miss.
 export function NotificationListener() {
   const userId = useAuthStore((s) => s.session?.user.id)
-  const markDmUnread = useNotificationStore((s) => s.markDmUnread)
+  const incrementThreadUnread = useNotificationStore((s) => s.incrementThreadUnread)
+  const setThreadCounts = useNotificationStore((s) => s.setThreadCounts)
   const showToast = useNotificationStore((s) => s.showToast)
   const clearToast = useNotificationStore((s) => s.clearToast)
 
@@ -34,8 +36,8 @@ export function NotificationListener() {
         (payload) => {
           // RLS already restricts delivery to messages in threads we're a
           // participant of, so any row here that isn't from us is new.
-          const row = payload.new as { sender_id: string }
-          if (row.sender_id !== userId) markDmUnread()
+          const row = payload.new as { thread_id: string; sender_id: string }
+          if (row.sender_id !== userId) incrementThreadUnread(row.thread_id)
         },
       )
       .on(
@@ -55,34 +57,43 @@ export function NotificationListener() {
           setTimeout(() => clearToast(), 4000)
         },
       )
-      .subscribe((status, err) => {
-        console.log('[notify] channel status:', status, err ?? '')
-      })
+      .subscribe()
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [userId, markDmUnread, showToast, clearToast])
+  }, [userId, incrementThreadUnread, showToast, clearToast])
 
   // Belt-and-suspenders: the realtime push above isn't reliably reaching
-  // this listener (same class of issue as the DM thread view), so also
-  // poll for any incoming message newer than the last time the badge was
-  // cleared. RLS already scopes dm_messages to our own threads.
+  // this listener, so also poll and recompute per-thread counts fresh —
+  // self-correcting, no risk of double-counting across ticks.
   useEffect(() => {
     if (!userId) return
-    const pollId = setInterval(async () => {
-      const { lastClearedAt } = useNotificationStore.getState()
-      const { data, error } = await supabase
-        .from('dm_messages')
-        .select('id')
-        .neq('sender_id', userId)
-        .gt('created_at', lastClearedAt)
-        .limit(1)
-      console.log('[notify] poll check:', { lastClearedAt, found: data?.length ?? 0, error })
-      if (data && data.length > 0) markDmUnread()
-    }, 5000)
+    const pollId = setInterval(() => refreshUnreadCounts(userId, setThreadCounts), 5000)
+    refreshUnreadCounts(userId, setThreadCounts)
     return () => clearInterval(pollId)
-  }, [userId, markDmUnread])
+  }, [userId, setThreadCounts])
 
   return null
+}
+
+export async function refreshUnreadCounts(
+  userId: string,
+  setThreadCounts: (counts: Record<string, number>) => void,
+) {
+  const { lastReadFor } = useNotificationStore.getState()
+  const { data } = await supabase
+    .from('dm_messages')
+    .select('thread_id, created_at')
+    .neq('sender_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(100)
+  if (!data) return
+  const counts: Record<string, number> = {}
+  for (const row of data) {
+    if (row.created_at > lastReadFor(row.thread_id)) {
+      counts[row.thread_id] = (counts[row.thread_id] ?? 0) + 1
+    }
+  }
+  setThreadCounts(counts)
 }

@@ -11,7 +11,9 @@ const tabs = [
 ]
 
 export function BottomNav() {
-  const hasUnreadDm = useNotificationStore((s) => s.hasUnreadDm)
+  const totalUnread = useNotificationStore((s) =>
+    Object.values(s.unreadCounts).reduce((sum, n) => sum + n, 0),
+  )
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur">
@@ -29,8 +31,10 @@ export function BottomNav() {
           >
             <span className="relative">
               <Icon className="h-5 w-5" />
-              {to === '/chat' && hasUnreadDm && (
-                <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-500" />
+              {to === '/chat' && totalUnread > 0 && (
+                <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white">
+                  {totalUnread > 9 ? '9+' : totalUnread}
+                </span>
               )}
             </span>
             {label}

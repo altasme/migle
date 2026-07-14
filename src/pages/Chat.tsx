@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { useNotificationStore } from '../store/notificationStore'
+import { refreshUnreadCounts } from '../components/NotificationListener'
 import { AvatarImage } from '../components/AvatarImage'
 
 type ThreadRow = {
@@ -21,18 +22,16 @@ type ThreadDisplay = ThreadRow & {
 export function Chat() {
   const navigate = useNavigate()
   const userId = useAuthStore((s) => s.session?.user.id)
-  const clearDmUnread = useNotificationStore((s) => s.clearDmUnread)
+  const unreadCounts = useNotificationStore((s) => s.unreadCounts)
+  const setThreadCounts = useNotificationStore((s) => s.setThreadCounts)
   const [threads, setThreads] = useState<ThreadDisplay[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    clearDmUnread()
-  }, [clearDmUnread])
-
-  useEffect(() => {
     if (!userId) return
     load(userId)
-  }, [userId])
+    refreshUnreadCounts(userId, setThreadCounts)
+  }, [userId, setThreadCounts])
 
   async function load(uid: string) {
     setLoading(true)
@@ -78,22 +77,34 @@ export function Chat() {
         <p className="text-sm text-zinc-500">No conversations yet — find someone in Discover.</p>
       ) : (
         <div className="flex flex-col gap-2">
-          {threads.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => navigate(`/dm/${t.id}`)}
-              className="flex w-full items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-left hover:border-purple-600"
-            >
-              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-sm text-white">
-                <AvatarImage
-                  equipped={t.otherEquipped}
-                  fallbackLetter={t.otherUsername[0]?.toUpperCase() ?? '?'}
-                  className="h-full w-full object-contain"
-                />
-              </div>
-              <span className="text-sm font-medium text-white">@{t.otherUsername}</span>
-            </button>
-          ))}
+          {threads.map((t) => {
+            const unread = unreadCounts[t.id] ?? 0
+            return (
+              <button
+                key={t.id}
+                onClick={() => navigate(`/dm/${t.id}`)}
+                className="flex w-full items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-left hover:border-purple-600"
+              >
+                <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-sm text-white">
+                  <AvatarImage
+                    equipped={t.otherEquipped}
+                    fallbackLetter={t.otherUsername[0]?.toUpperCase() ?? '?'}
+                    className="h-full w-full object-contain"
+                  />
+                </div>
+                <span
+                  className={`text-sm ${unread > 0 ? 'font-semibold text-white' : 'font-medium text-zinc-300'}`}
+                >
+                  @{t.otherUsername}
+                </span>
+                {unread > 0 && (
+                  <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-purple-600 px-1.5 text-xs font-medium text-white">
+                    {unread}
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </div>
       )}
     </div>
