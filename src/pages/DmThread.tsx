@@ -20,6 +20,14 @@ type DmMessage = {
   created_at: string
 }
 
+type Relationship = {
+  id: string
+  user_a: string
+  user_b: string
+  status: 'pending' | 'active' | 'ended'
+  cp_score: number
+}
+
 export function DmThread() {
   const { threadId } = useParams<{ threadId: string }>()
   const navigate = useNavigate()
@@ -27,11 +35,15 @@ export function DmThread() {
   const clearThreadUnread = useNotificationStore((s) => s.clearThreadUnread)
 
   const [thread, setThread] = useState<ThreadRow | 'not-found' | null>(null)
+  const [otherId, setOtherId] = useState<string | null>(null)
   const [other, setOther] = useState<{ username: string; equipped: Record<string, string> } | null>(
     null,
   )
   const [messages, setMessages] = useState<DmMessage[]>([])
   const [input, setInput] = useState('')
+  const [relationship, setRelationship] = useState<Relationship | null>(null)
+  const [relBusy, setRelBusy] = useState(false)
+  const [relError, setRelError] = useState<string | null>(null)
   const chatEndRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -59,16 +71,17 @@ export function DmThread() {
       }
       setThread(data)
 
-      const otherId = data.user_a === userId ? data.user_b : data.user_a
+      const oid = data.user_a === userId ? data.user_b : data.user_a
+      setOtherId(oid)
       const { data: prof } = await supabase
         .from('profiles')
         .select('username, equipped')
-        .eq('id', otherId)
+        .eq('id', oid)
         .maybeSingle()
       if (!active) return
       setOther(prof)
 
-      await refreshMessages()
+      await Promise.all([refreshMessages(), refreshRelationship(oid)])
     }
 
     async function refreshMessages() {
@@ -105,6 +118,59 @@ export function DmThread() {
       supabase.removeChannel(channel)
     }
   }, [threadId, userId])
+
+  async function refreshRelationship(oid: string) {
+    const { data: rels } = await supabase
+      .from('relationships')
+      .select('id, user_a, user_b, status, cp_score')
+      .or(`and(user_a.eq.${userId},user_b.eq.${oid}),and(user_a.eq.${oid},user_b.eq.${userId})`)
+    const rows = (rels ?? []) as Relationship[]
+    setRelationship(
+      rows.find((r) => r.status === 'active') ?? rows.find((r) => r.status === 'pending') ?? rows[0] ?? null,
+    )
+  }
+
+  async function proposeRelationship() {
+    if (!otherId) return
+    setRelBusy(true)
+    setRelError(null)
+    const { error } = await supabase.rpc('propose_relationship', { p_to: otherId })
+    setRelBusy(false)
+    if (error) {
+      setRelError(error.message)
+      return
+    }
+    await refreshRelationship(otherId)
+  }
+
+  async function respondRelationship(accept: boolean) {
+    if (!relationship || !otherId) return
+    setRelBusy(true)
+    setRelError(null)
+    const { error } = await supabase.rpc('respond_relationship', {
+      p_id: relationship.id,
+      p_accept: accept,
+    })
+    setRelBusy(false)
+    if (error) {
+      setRelError(error.message)
+      return
+    }
+    await refreshRelationship(otherId)
+  }
+
+  async function endRelationship() {
+    if (!otherId) return
+    setRelBusy(true)
+    setRelError(null)
+    const { error } = await supabase.rpc('end_relationship')
+    setRelBusy(false)
+    if (error) {
+      setRelError(error.message)
+      return
+    }
+    await refreshRelationship(otherId)
+  }
 
   async function sendMessage(e: React.FormEvent) {
     e.preventDefault()
@@ -161,6 +227,57 @@ export function DmThread() {
         </div>
         <h1 className="font-medium text-white">@{other?.username ?? '…'}</h1>
       </div>
+
+      {otherId && (
+        <div className="mb-3 flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-sm">
+          {!relationship || relationship.status === 'ended' ? (
+            <>
+              <span className="text-zinc-400">Not partnered yet</span>
+              <button
+                onClick={proposeRelationship}
+                disabled={relBusy}
+                className="rounded-lg bg-pink-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+              >
+                💍 Propose
+              </button>
+            </>
+          ) : relationship.status === 'pending' && relationship.user_a === userId ? (
+            <span className="text-zinc-400">💍 Waiting for @{other?.username} to accept…</span>
+          ) : relationship.status === 'pending' ? (
+            <>
+              <span className="text-zinc-300">💍 @{other?.username} wants to be your partner</span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => respondRelationship(true)}
+                  disabled={relBusy}
+                  className="rounded-lg bg-pink-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+                >
+                  Accept
+                </button>
+                <button
+                  onClick={() => respondRelationship(false)}
+                  disabled={relBusy}
+                  className="rounded-lg border border-zinc-700 px-3 py-1 text-xs text-zinc-300 disabled:opacity-50"
+                >
+                  Decline
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <span className="text-pink-400">💍 Partnered · CP {relationship.cp_score}</span>
+              <button
+                onClick={endRelationship}
+                disabled={relBusy}
+                className="rounded-lg border border-zinc-700 px-3 py-1 text-xs text-zinc-300 disabled:opacity-50"
+              >
+                End
+              </button>
+            </>
+          )}
+        </div>
+      )}
+      {relError && <p className="mb-2 text-center text-xs text-red-400">{relError}</p>}
 
       <div className="flex-1 space-y-1 overflow-y-auto rounded-lg border border-zinc-800 p-3">
         {messages.length === 0 && (

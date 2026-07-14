@@ -12,6 +12,7 @@ import { Wardrobe } from './pages/Wardrobe'
 import { Discover } from './pages/Discover'
 import { Chat } from './pages/Chat'
 import { DmThread } from './pages/DmThread'
+import { Leaderboard } from './pages/Leaderboard'
 
 function Centered({ children }: { children: ReactNode }) {
   return <div className="flex min-h-svh items-center justify-center">{children}</div>
@@ -93,6 +94,7 @@ function AppShell() {
       <Route path="/r/:slug" element={<RoomPage />} />
       <Route path="/wardrobe" element={<Wardrobe />} />
       <Route path="/dm/:threadId" element={<DmThread />} />
+      <Route path="/leaderboard" element={<Leaderboard />} />
     </Routes>
   )
 }
