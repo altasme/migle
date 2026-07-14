@@ -10,6 +10,7 @@ const GIFT_EMOJI: Record<string, string> = {
   teddy: '🧸',
   balloons: '🎈',
   fireworks: '🎆',
+  ring: '💍',
 }
 
 // App-wide listener for things that should notify you no matter which

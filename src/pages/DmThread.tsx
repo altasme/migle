@@ -44,6 +44,7 @@ export function DmThread() {
   const [relationship, setRelationship] = useState<Relationship | null>(null)
   const [relBusy, setRelBusy] = useState(false)
   const [relError, setRelError] = useState<string | null>(null)
+  const [showEndConfirm, setShowEndConfirm] = useState(false)
   const chatEndRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -130,18 +131,14 @@ export function DmThread() {
     )
   }
 
-  async function proposeRelationship() {
+  // Relationship status can change from the other person's side (they end
+  // it, they respond to a request) without any action on ours — poll so
+  // this doesn't go stale until we happen to revisit the page.
+  useEffect(() => {
     if (!otherId) return
-    setRelBusy(true)
-    setRelError(null)
-    const { error } = await supabase.rpc('propose_relationship', { p_to: otherId })
-    setRelBusy(false)
-    if (error) {
-      setRelError(error.message)
-      return
-    }
-    await refreshRelationship(otherId)
-  }
+    const pollId = setInterval(() => refreshRelationship(otherId), 5000)
+    return () => clearInterval(pollId)
+  }, [otherId])
 
   async function respondRelationship(accept: boolean) {
     if (!relationship || !otherId) return
@@ -159,12 +156,13 @@ export function DmThread() {
     await refreshRelationship(otherId)
   }
 
-  async function endRelationship() {
+  async function confirmEndRelationship() {
     if (!otherId) return
     setRelBusy(true)
     setRelError(null)
     const { error } = await supabase.rpc('end_relationship')
     setRelBusy(false)
+    setShowEndConfirm(false)
     if (error) {
       setRelError(error.message)
       return
@@ -231,16 +229,9 @@ export function DmThread() {
       {otherId && (
         <div className="mb-3 flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-sm">
           {!relationship || relationship.status === 'ended' ? (
-            <>
-              <span className="text-zinc-400">Not partnered yet</span>
-              <button
-                onClick={proposeRelationship}
-                disabled={relBusy}
-                className="rounded-lg bg-pink-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
-              >
-                💍 Propose
-              </button>
-            </>
+            <span className="text-zinc-500">
+              💍 Send them a Ring gift in a room to propose
+            </span>
           ) : relationship.status === 'pending' && relationship.user_a === userId ? (
             <span className="text-zinc-400">💍 Waiting for @{other?.username} to accept…</span>
           ) : relationship.status === 'pending' ? (
@@ -267,7 +258,7 @@ export function DmThread() {
             <>
               <span className="text-pink-400">💍 Partnered · CP {relationship.cp_score}</span>
               <button
-                onClick={endRelationship}
+                onClick={() => setShowEndConfirm(true)}
                 disabled={relBusy}
                 className="rounded-lg border border-zinc-700 px-3 py-1 text-xs text-zinc-300 disabled:opacity-50"
               >
@@ -278,6 +269,32 @@ export function DmThread() {
         </div>
       )}
       {relError && <p className="mb-2 text-center text-xs text-red-400">{relError}</p>}
+
+      {showEndConfirm && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60">
+          <div className="mx-4 w-full max-w-xs rounded-2xl bg-zinc-900 p-4 text-center">
+            <p className="mb-4 text-sm text-white">
+              Are you sure you want to end your relationship with @{other?.username}?
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowEndConfirm(false)}
+                disabled={relBusy}
+                className="flex-1 rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmEndRelationship}
+                disabled={relBusy}
+                className="flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+              >
+                {relBusy ? 'Ending…' : 'End it'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 space-y-1 overflow-y-auto rounded-lg border border-zinc-800 p-3">
         {messages.length === 0 && (

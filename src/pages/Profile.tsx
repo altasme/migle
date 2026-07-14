@@ -19,26 +19,36 @@ export function Profile() {
   useEffect(() => {
     const uid = session?.user.id
     if (!uid) return
-    supabase
-      .from('relationships')
-      .select('user_a, user_b, cp_score, streak_days')
-      .eq('status', 'active')
-      .or(`user_a.eq.${uid},user_b.eq.${uid}`)
-      .maybeSingle()
-      .then(async ({ data }) => {
-        if (!data) return
-        const partnerId = data.user_a === uid ? data.user_b : data.user_a
-        const { data: prof } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('id', partnerId)
-          .maybeSingle()
-        setRelationship({
-          partnerUsername: prof?.username ?? '?',
-          cp_score: data.cp_score,
-          streak_days: data.streak_days,
-        })
+
+    async function refresh() {
+      const { data } = await supabase
+        .from('relationships')
+        .select('user_a, user_b, cp_score, streak_days')
+        .eq('status', 'active')
+        .or(`user_a.eq.${uid},user_b.eq.${uid}`)
+        .maybeSingle()
+      if (!data) {
+        setRelationship(null)
+        return
+      }
+      const partnerId = data.user_a === uid ? data.user_b : data.user_a
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', partnerId)
+        .maybeSingle()
+      setRelationship({
+        partnerUsername: prof?.username ?? '?',
+        cp_score: data.cp_score,
+        streak_days: data.streak_days,
       })
+    }
+
+    refresh()
+    // Partner could end things from their side while we're just sitting
+    // on this page — poll so it doesn't go stale.
+    const pollId = setInterval(refresh, 5000)
+    return () => clearInterval(pollId)
   }, [session?.user.id])
 
   return (

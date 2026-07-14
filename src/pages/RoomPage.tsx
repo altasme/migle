@@ -34,6 +34,7 @@ const GIFT_EMOJI: Record<string, string> = {
   teddy: '🧸',
   balloons: '🎈',
   fireworks: '🎆',
+  ring: '💍',
 }
 
 type RoomRow = {
