@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { useNotificationStore } from '../store/notificationStore'
 import { AvatarImage } from '../components/AvatarImage'
+import { SafetyMenu } from '../components/SafetyMenu'
 
 type ThreadRow = {
   id: string
@@ -223,7 +224,8 @@ export function DmThread() {
             className="h-full w-full object-contain"
           />
         </div>
-        <h1 className="font-medium text-white">@{other?.username ?? '…'}</h1>
+        <h1 className="flex-1 font-medium text-white">@{other?.username ?? '…'}</h1>
+        {otherId && other && <SafetyMenu targetId={otherId} targetUsername={other.username} />}
       </div>
 
       {otherId && (

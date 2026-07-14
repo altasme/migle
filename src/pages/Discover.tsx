@@ -20,16 +20,21 @@ export function Discover() {
 
   useEffect(() => {
     if (!userId) return
-    supabase
-      .from('profiles')
-      .select('id, username, equipped')
-      .neq('id', userId)
-      .order('last_seen_at', { ascending: false })
-      .limit(50)
-      .then(({ data }) => {
-        setProfiles(data ?? [])
-        setLoading(false)
-      })
+    async function load() {
+      const [{ data: profs }, { data: blocked }] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('id, username, equipped')
+          .neq('id', userId)
+          .order('last_seen_at', { ascending: false })
+          .limit(50),
+        supabase.from('blocks').select('blocked_id').eq('blocker_id', userId),
+      ])
+      const blockedIds = new Set((blocked ?? []).map((b) => b.blocked_id))
+      setProfiles((profs ?? []).filter((p) => !blockedIds.has(p.id)))
+      setLoading(false)
+    }
+    load()
   }, [userId])
 
   async function approach(otherId: string) {

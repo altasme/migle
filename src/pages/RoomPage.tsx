@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 import { fetchLiveKitToken, LIVEKIT_URL } from '../lib/livekit'
 import { useAuthStore } from '../store/authStore'
 import { AvatarImage } from '../components/AvatarImage'
+import { SafetyMenu } from '../components/SafetyMenu'
 
 type GiftCatalogItem = {
   id: string
@@ -99,12 +100,14 @@ export function RoomPage() {
   const [sendingGift, setSendingGift] = useState(false)
   const [giftSendError, setGiftSendError] = useState<string | null>(null)
   const [activeGiftAnim, setActiveGiftAnim] = useState<GiftAnimPayload | null>(null)
+  const [ejected, setEjected] = useState(false)
 
   const livekitRoomRef = useRef<Room | null>(null)
   const audioContainerRef = useRef<HTMLDivElement | null>(null)
   const membersRef = useRef<Member[]>([])
   const chatEndRef = useRef<HTMLDivElement | null>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
+  const hasJoinedRef = useRef(false)
 
   useEffect(() => {
     membersRef.current = members
@@ -246,9 +249,14 @@ export function RoomPage() {
       if (!active) return
       await Promise.all([loadMembers(roomId!), loadMessages(roomId!), loadSupporters(roomId!)])
       if (!active) return
+      hasJoinedRef.current = true
       await connectVoice(slug!)
     }
     setup()
+
+    // Belt-and-suspenders: don't rely solely on the realtime push to
+    // notice an owner mute/kick — poll the roster too.
+    const memberPollId = setInterval(() => loadMembers(roomId!), 5000)
 
     supabase
       .from('gift_catalog')
@@ -282,6 +290,7 @@ export function RoomPage() {
 
     return () => {
       active = false
+      clearInterval(memberPollId)
       channelRef.current = null
       supabase.removeChannel(channel)
       livekitRoomRef.current?.disconnect()
@@ -290,8 +299,28 @@ export function RoomPage() {
   }, [roomId, userId, slug])
 
   const me = members.find((m) => m.user_id === userId)
+
+  // Owner kicked us: we joined successfully at some point but no longer
+  // appear on the roster. Disconnect and bounce home.
+  useEffect(() => {
+    if (!hasJoinedRef.current || !userId) return
+    if (!me) {
+      setEjected(true)
+      livekitRoomRef.current?.disconnect()
+      const t = setTimeout(() => navigate('/'), 2500)
+      return () => clearTimeout(t)
+    }
+  }, [members, userId, me, navigate])
+
+  // Owner force-muted us: our token already grants publish, so the DB
+  // flag alone won't stop us — sync the local mic to match.
+  useEffect(() => {
+    if (!me) return
+    livekitRoomRef.current?.localParticipant.setMicrophoneEnabled(!me.is_muted)
+  }, [me?.is_muted])
   const mySeat = me?.seat_index ?? null
   const myMuted = me?.is_muted ?? false
+  const isOwner = room !== null && room !== 'not-found' && room.owner_id === userId
 
   async function takeSeat(index: number) {
     if (!roomId || !userId || !slug) return
@@ -331,6 +360,18 @@ export function RoomPage() {
       .eq('user_id', userId)
     await loadMembers(roomId)
     await livekitRoomRef.current?.localParticipant.setMicrophoneEnabled(!next)
+  }
+
+  async function ownerMute(targetUserId: string, muted: boolean) {
+    if (!roomId) return
+    await supabase.rpc('owner_mute_member', { p_room: roomId, p_user: targetUserId, p_muted: muted })
+    await loadMembers(roomId)
+  }
+
+  async function ownerKick(targetUserId: string) {
+    if (!roomId) return
+    await supabase.rpc('owner_kick_member', { p_room: roomId, p_user: targetUserId })
+    await loadMembers(roomId)
   }
 
   async function sendMessage(e: React.FormEvent) {
@@ -441,36 +482,53 @@ export function RoomPage() {
           const occupant = members.find((m) => m.seat_index === i)
           const isMe = occupant?.user_id === userId
           return (
-            <button
-              key={i}
-              onClick={() => (occupant ? (isMe ? toggleMute() : undefined) : takeSeat(i))}
-              disabled={!occupant && mySeat === i}
-              className="flex flex-col items-center gap-1"
-            >
-              <div
-                className={`flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border-2 text-white ${
-                  occupant
-                    ? isMe
-                      ? 'border-purple-500 bg-purple-900'
-                      : 'border-zinc-600 bg-zinc-800'
-                    : 'border-dashed border-zinc-700 bg-zinc-900 text-zinc-600'
-                }`}
-              >
-                {occupant ? (
-                  <AvatarImage
-                    equipped={occupant.equipped}
-                    fallbackLetter={occupant.username[0]?.toUpperCase() ?? '?'}
-                    className="h-full w-full object-contain"
-                  />
-                ) : (
-                  '+'
+            <div key={i} className="flex flex-col items-center gap-1">
+              <div className="relative">
+                <button
+                  onClick={() => (occupant ? (isMe ? toggleMute() : undefined) : takeSeat(i))}
+                  disabled={!occupant && mySeat === i}
+                  className={`flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border-2 text-white ${
+                    occupant
+                      ? isMe
+                        ? 'border-purple-500 bg-purple-900'
+                        : 'border-zinc-600 bg-zinc-800'
+                      : 'border-dashed border-zinc-700 bg-zinc-900 text-zinc-600'
+                  }`}
+                >
+                  {occupant ? (
+                    <AvatarImage
+                      equipped={occupant.equipped}
+                      fallbackLetter={occupant.username[0]?.toUpperCase() ?? '?'}
+                      className="h-full w-full object-contain"
+                    />
+                  ) : (
+                    '+'
+                  )}
+                </button>
+                {occupant && !isMe && (
+                  <div className="absolute -right-1 -top-1 rounded-full bg-zinc-900/90">
+                    <SafetyMenu
+                      targetId={occupant.user_id}
+                      targetUsername={occupant.username}
+                      roomId={roomId ?? undefined}
+                      ownerControls={
+                        isOwner
+                          ? {
+                              isMuted: occupant.is_muted,
+                              onMute: (muted) => ownerMute(occupant.user_id, muted),
+                              onKick: () => ownerKick(occupant.user_id),
+                            }
+                          : undefined
+                      }
+                    />
+                  </div>
                 )}
               </div>
               <span className="max-w-14 truncate text-xs text-zinc-400">
                 {occupant ? occupant.username : 'empty'}
                 {occupant?.is_muted ? ' 🔇' : ''}
               </span>
-            </button>
+            </div>
           )
         })}
       </div>
@@ -496,8 +554,27 @@ export function RoomPage() {
       {listeners.length > 0 && (
         <div className="flex flex-wrap justify-center gap-2 text-xs text-zinc-500">
           {listeners.map((l) => (
-            <span key={l.user_id} className="rounded-full bg-zinc-900 px-2 py-1">
+            <span
+              key={l.user_id}
+              className="flex items-center gap-1 rounded-full bg-zinc-900 px-2 py-1"
+            >
               {l.username}
+              {l.user_id !== userId && (
+                <SafetyMenu
+                  targetId={l.user_id}
+                  targetUsername={l.username}
+                  roomId={roomId ?? undefined}
+                  ownerControls={
+                    isOwner
+                      ? {
+                          isMuted: l.is_muted,
+                          onMute: (muted) => ownerMute(l.user_id, muted),
+                          onKick: () => ownerKick(l.user_id),
+                        }
+                      : undefined
+                  }
+                />
+              )}
             </span>
           ))}
         </div>
@@ -644,6 +721,14 @@ export function RoomPage() {
           <p className="animate-bounce text-8xl">{GIFT_EMOJI[activeGiftAnim.giftId] ?? '🎁'}</p>
           <p className="mt-4 text-lg font-semibold text-white">
             {activeGiftAnim.senderName} sent {activeGiftAnim.recipientName} a {activeGiftAnim.giftName}!
+          </p>
+        </div>
+      )}
+
+      {ejected && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/80">
+          <p className="text-center text-white">
+            You were removed from this room by the owner.
           </p>
         </div>
       )}
