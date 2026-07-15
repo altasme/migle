@@ -61,13 +61,13 @@ export function Profile() {
         />
       </div>
       <div>
-        <h1 className="text-xl font-semibold text-white">@{profile?.username}</h1>
+        <h1 className="text-xl font-semibold text-white">{profile?.username}</h1>
         <p className="text-sm text-zinc-500">{session?.user.email}</p>
       </div>
 
       {relationship && (
         <div className="rounded-lg border border-pink-900/50 bg-pink-950/30 px-4 py-2 text-sm">
-          <p className="text-pink-400">💍 Partnered with @{relationship.partnerUsername}</p>
+          <p className="text-pink-400">💍 Partnered with {relationship.partnerUsername}</p>
           <p className="text-xs text-zinc-400">
             CP {relationship.cp_score} · {relationship.streak_days} day streak
           </p>

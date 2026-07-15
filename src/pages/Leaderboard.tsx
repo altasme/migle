@@ -72,7 +72,7 @@ export function Leaderboard() {
             >
               <span className="text-sm text-zinc-300">
                 <span className="mr-2">{medal(i)}</span>
-                @{r.aUsername} 💕 @{r.bUsername}
+                {r.aUsername} 💕 {r.bUsername}
               </span>
               <span className="text-sm text-pink-400">CP {r.cp_score}</span>
             </div>

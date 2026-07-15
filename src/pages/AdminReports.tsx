@@ -98,7 +98,7 @@ export function AdminReports() {
               }`}
             >
               <p className="text-white">
-                @{r.reporterUsername} reported <span className="font-medium">@{r.reportedUsername}</span>
+                {r.reporterUsername} reported <span className="font-medium">{r.reportedUsername}</span>
               </p>
               <p className="text-xs text-zinc-400">Reason: {r.reason ?? '—'}</p>
               <p className="text-xs text-zinc-500">

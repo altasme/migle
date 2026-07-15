@@ -73,7 +73,7 @@ export function Discover() {
                   className="h-full w-full object-contain"
                 />
               </div>
-              <span className="text-sm font-medium text-white">@{p.username}</span>
+              <span className="text-sm font-medium text-white">{p.username}</span>
               <button
                 onClick={() => approach(p.id)}
                 disabled={approaching === p.id}

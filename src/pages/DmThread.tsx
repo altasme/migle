@@ -224,7 +224,7 @@ export function DmThread() {
             className="h-full w-full object-contain"
           />
         </div>
-        <h1 className="flex-1 font-medium text-white">@{other?.username ?? '…'}</h1>
+        <h1 className="flex-1 font-medium text-white">{other?.username ?? '…'}</h1>
         {otherId && other && <SafetyMenu targetId={otherId} targetUsername={other.username} />}
       </div>
 
@@ -235,10 +235,10 @@ export function DmThread() {
               💍 Send them a Ring gift in a room to propose
             </span>
           ) : relationship.status === 'pending' && relationship.user_a === userId ? (
-            <span className="text-zinc-400">💍 Waiting for @{other?.username} to accept…</span>
+            <span className="text-zinc-400">💍 Waiting for {other?.username} to accept…</span>
           ) : relationship.status === 'pending' ? (
             <>
-              <span className="text-zinc-300">💍 @{other?.username} wants to be your partner</span>
+              <span className="text-zinc-300">💍 {other?.username} wants to be your partner</span>
               <div className="flex gap-2">
                 <button
                   onClick={() => respondRelationship(true)}
@@ -276,7 +276,7 @@ export function DmThread() {
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60">
           <div className="mx-4 w-full max-w-xs rounded-2xl bg-zinc-900 p-4 text-center">
             <p className="mb-4 text-sm text-white">
-              Are you sure you want to end your relationship with @{other?.username}?
+              Are you sure you want to end your relationship with {other?.username}?
             </p>
             <div className="flex gap-2">
               <button
