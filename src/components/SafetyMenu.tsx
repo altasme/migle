@@ -87,7 +87,7 @@ export function SafetyMenu({ targetId, targetUsername, roomId, ownerControls, on
                 onClick={() => setReporting(true)}
                 className="rounded px-2 py-1.5 text-left text-sm text-zinc-300 hover:bg-zinc-800"
               >
-                🚩 Report @{targetUsername}
+                🚩 Report {targetUsername}
               </button>
               <button
                 onClick={toggleBlock}

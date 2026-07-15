@@ -98,7 +98,7 @@ export function Chat() {
                 <span
                   className={`text-sm ${unread > 0 ? 'font-semibold text-white' : 'font-medium text-zinc-300'}`}
                 >
-                  @{t.otherUsername}
+                  {t.otherUsername}
                 </span>
                 {unread > 0 && (
                   <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-purple-600 px-1.5 text-xs font-medium text-white">

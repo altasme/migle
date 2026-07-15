@@ -48,7 +48,7 @@ export function Home() {
 
   return (
     <div className="flex flex-col gap-6 p-4">
-      <p className="text-sm text-zinc-400">Welcome back, @{profile?.username}</p>
+      <p className="text-sm text-zinc-400">Welcome back, {profile?.username}</p>
 
       <section className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
         <h2 className="mb-3 text-sm font-medium text-zinc-400">Your room</h2>

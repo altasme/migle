@@ -80,7 +80,7 @@ export function BlockedUsers() {
                   className="h-full w-full object-contain"
                 />
               </div>
-              <span className="flex-1 text-sm font-medium text-white">@{u.username}</span>
+              <span className="flex-1 text-sm font-medium text-white">{u.username}</span>
               <button
                 onClick={() => handleUnblock(u.id)}
                 disabled={busy === u.id}
