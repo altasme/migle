@@ -44,13 +44,19 @@ export async function getBlockedPairIds(userId: string): Promise<Set<string>> {
   return ids
 }
 
-export async function reportUser(reportedId: string, reason: string, roomId?: string) {
+export async function reportUser(
+  reportedId: string,
+  reason: string,
+  roomId?: string,
+  matchSessionId?: string,
+) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not signed in')
   const { error } = await supabase.from('reports').insert({
     reporter_id: user.id,
     reported_id: reportedId,
     room_id: roomId ?? null,
+    match_session_id: matchSessionId ?? null,
     reason,
   })
   if (error) throw error

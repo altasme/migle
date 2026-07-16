@@ -9,6 +9,7 @@ import { Home } from './pages/Home'
 import { Rooms } from './pages/Rooms'
 import { Profile } from './pages/Profile'
 import { RoomPage } from './pages/RoomPage'
+import { VibeMatch } from './pages/VibeMatch'
 import { Wardrobe } from './pages/Wardrobe'
 import { Discover } from './pages/Discover'
 import { Chat } from './pages/Chat'
@@ -88,6 +89,7 @@ function AppShell() {
         }
       />
       <Route path="/r/:slug" element={<RoomPage />} />
+      <Route path="/vibematch" element={<VibeMatch />} />
       <Route path="/wardrobe" element={<Wardrobe />} />
       <Route path="/dm/:threadId" element={<DmThread />} />
       <Route path="/leaderboard" element={<Leaderboard />} />
