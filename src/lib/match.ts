@@ -8,6 +8,8 @@ export type MatchSession = {
   region: string
   created_at: string
   ended_at: string | null
+  liked_a: boolean
+  liked_b: boolean
 }
 
 export type MatchMessage = {
@@ -31,9 +33,21 @@ export async function endMatch(sessionId: string) {
   if (error) throw error
 }
 
-export async function getSessionStatus(sessionId: string): Promise<string | null> {
-  const { data } = await supabase.from('match_sessions').select('ended_at').eq('id', sessionId).maybeSingle()
-  return data?.ended_at ?? null
+export async function likeMatchPartner(sessionId: string): Promise<MatchSession> {
+  const { data, error } = await supabase.rpc('like_match_partner', { p_session_id: sessionId })
+  if (error) throw error
+  return data
+}
+
+export async function getSessionState(
+  sessionId: string,
+): Promise<Pick<MatchSession, 'ended_at' | 'liked_a' | 'liked_b'> | null> {
+  const { data } = await supabase
+    .from('match_sessions')
+    .select('ended_at, liked_a, liked_b')
+    .eq('id', sessionId)
+    .maybeSingle()
+  return data
 }
 
 export async function fetchMatchMessages(sessionId: string): Promise<MatchMessage[]> {

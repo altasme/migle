@@ -18,7 +18,7 @@ export function Home() {
         to="/vibematch"
         className="rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 p-6 text-center shadow-lg"
       >
-        <p className="text-lg font-semibold text-white">✨ Start VibeMatch</p>
+        <p className="text-lg font-semibold text-white">✨ Let's start Mingling!</p>
         <p className="mt-1 text-sm text-white/80">Meet someone new, right now.</p>
       </Link>
 

@@ -7,20 +7,30 @@ import { blockUser, reportUser } from '../lib/safety'
 import {
   requestMatch,
   endMatch,
-  getSessionStatus,
+  likeMatchPartner,
+  getSessionState,
   fetchMatchMessages,
   sendMatchMessage,
   type MatchSession,
   type MatchMessage,
 } from '../lib/match'
 
-type Phase = 'select' | 'waiting' | 'matched' | 'partner-left'
+type Phase = 'select' | 'waiting' | 'matched' | 'partner-left' | 'time-up'
 type Partner = { id: string; username: string; equipped: Record<string, string> }
 
 const WAITING_POLL_MS = 2500
-const STATUS_POLL_MS = 3000
+const STATE_POLL_MS = 3000
 const MESSAGE_POLL_MS = 3000
+const HEART_PROMPT_SEC = 120
+const MATCH_DEADLINE_SEC = 180
 const REPORT_REASONS = ['Harassment', 'Underage', 'Spam', 'Inappropriate content', 'Other']
+
+function formatCountdown(secondsLeft: number) {
+  const s = Math.max(0, secondsLeft)
+  const m = Math.floor(s / 60)
+  const r = s % 60
+  return `${m}:${r.toString().padStart(2, '0')}`
+}
 
 export function VibeMatch() {
   const navigate = useNavigate()
@@ -37,7 +47,17 @@ export function VibeMatch() {
   const [reportDone, setReportDone] = useState(false)
   const [blockBusy, setBlockBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [elapsed, setElapsed] = useState(0)
+  const [likes, setLikes] = useState({ liked_a: false, liked_b: false })
+  const [likeBusy, setLikeBusy] = useState(false)
+  const [justBecameFriends, setJustBecameFriends] = useState(false)
   const chatEndRef = useRef<HTMLDivElement | null>(null)
+  const timeoutHandledRef = useRef(false)
+
+  const iAmA = session?.user_a === userId
+  const iLiked = iAmA ? likes.liked_a : likes.liked_b
+  const partnerLiked = iAmA ? likes.liked_b : likes.liked_a
+  const bothLiked = likes.liked_a && likes.liked_b
 
   // Tracked for the unmount cleanup below — a plain effect dependency
   // would fire cleanup on every phase change, not just on leaving the page.
@@ -71,20 +91,31 @@ export function VibeMatch() {
     setPartner(data)
   }
 
+  function enterMatch(found: MatchSession) {
+    timeoutHandledRef.current = false
+    setElapsed(0)
+    setLikes({ liked_a: found.liked_a, liked_b: found.liked_b })
+    setJustBecameFriends(false)
+    setSession(found)
+    loadPartner(found)
+    setPhase('matched')
+  }
+
   async function startSearching() {
     setError(null)
     setPhase('waiting')
     try {
       const found = await requestMatch('text')
-      if (found) {
-        setSession(found)
-        await loadPartner(found)
-        setPhase('matched')
-      }
+      if (found) enterMatch(found)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.')
       setPhase('select')
     }
+  }
+
+  function leaveToHome() {
+    if (userId) supabase.from('match_queue').delete().eq('user_id', userId).then(() => {})
+    navigate('/')
   }
 
   // While waiting, keep asking to be matched — request_match() is also
@@ -94,38 +125,62 @@ export function VibeMatch() {
     const id = setInterval(async () => {
       try {
         const found = await requestMatch('text')
-        if (found) {
-          setSession(found)
-          await loadPartner(found)
-          setPhase('matched')
-        }
+        if (found) enterMatch(found)
       } catch {
         // Transient errors just get retried on the next tick.
       }
     }, WAITING_POLL_MS)
     return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, userId])
 
-  // While matched, watch for the partner ending the session from their
-  // side (Next, block, or leaving) — request_match() alone wouldn't
-  // surface that until we called it again ourselves.
+  // While matched, watch for the partner ending the session (Next, block,
+  // leaving) and keep our copy of both like flags fresh.
   useEffect(() => {
     if (phase !== 'matched' || !session) return
     const id = setInterval(async () => {
-      const endedAt = await getSessionStatus(session.id)
-      if (endedAt) {
+      const state = await getSessionState(session.id)
+      if (!state) return
+      if (state.ended_at) {
         setPhase('partner-left')
+        return
       }
-    }, STATUS_POLL_MS)
+      setLikes({ liked_a: state.liked_a, liked_b: state.liked_b })
+    }, STATE_POLL_MS)
     return () => clearInterval(id)
   }, [phase, session])
 
-  // Auto-resume searching a moment after the partner leaves.
+  // Auto-resume searching a moment after the partner leaves. Hitting the
+  // 3-minute deadline ourselves is different — that one waits for an
+  // explicit tap (see the 'time-up' branch below).
   useEffect(() => {
     if (phase !== 'partner-left') return
     const id = setTimeout(() => startSearching(), 1500)
     return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase])
+
+  // The 3-minute clock: past the deadline, either both hearts are in (in
+  // which case the timer just stops mattering) or the match ends and asks
+  // the user to move on.
+  useEffect(() => {
+    if (phase !== 'matched' || !session) return
+    const id = setInterval(() => {
+      const secs = Math.floor((Date.now() - new Date(session.created_at).getTime()) / 1000)
+      setElapsed(secs)
+      if (secs >= MATCH_DEADLINE_SEC && !timeoutHandledRef.current) {
+        setLikes((current) => {
+          if (!(current.liked_a && current.liked_b)) {
+            timeoutHandledRef.current = true
+            endMatch(session.id).catch(() => {})
+            setPhase('time-up')
+          }
+          return current
+        })
+      }
+    }, 1000)
+    return () => clearInterval(id)
+  }, [phase, session])
 
   useEffect(() => {
     if (phase !== 'matched' || !session) return
@@ -167,6 +222,21 @@ export function VibeMatch() {
       await sendMatchMessage(session.id, userId, body)
     } catch {
       setError('Message failed to send.')
+    }
+  }
+
+  async function handleLike() {
+    if (!session || likeBusy) return
+    setLikeBusy(true)
+    try {
+      const updated = await likeMatchPartner(session.id)
+      const nowBoth = updated.liked_a && updated.liked_b
+      if (nowBoth && !bothLiked) setJustBecameFriends(true)
+      setLikes({ liked_a: updated.liked_a, liked_b: updated.liked_b })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong.')
+    } finally {
+      setLikeBusy(false)
     }
   }
 
@@ -220,7 +290,7 @@ export function VibeMatch() {
           ← Back
         </button>
         <div>
-          <h1 className="text-2xl font-semibold text-white">VibeMatch</h1>
+          <h1 className="text-2xl font-semibold text-white">Mingling</h1>
           <p className="mt-1 text-sm text-zinc-400">Meet someone new, right now.</p>
         </div>
         {error && <p className="text-sm text-red-400">{error}</p>}
@@ -243,27 +313,52 @@ export function VibeMatch() {
     )
   }
 
-  if (phase === 'waiting' || phase === 'partner-left') {
+  if (phase === 'waiting' || phase === 'partner-left' || phase === 'time-up') {
+    const copy =
+      phase === 'partner-left'
+        ? 'They left. Finding someone new…'
+        : phase === 'time-up'
+          ? "Time's up!"
+          : 'Looking for someone…'
     return (
       <div className="mx-auto flex min-h-svh w-full max-w-sm flex-col items-center justify-center gap-4 p-6 text-center">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-zinc-700 border-t-purple-500" />
-        <p className="text-white">{phase === 'partner-left' ? 'They left. Finding someone new…' : 'Looking for someone…'}</p>
-        <button
-          onClick={() => {
-            if (userId) supabase.from('match_queue').delete().eq('user_id', userId)
-            setPhase('select')
-          }}
-          className="text-sm text-zinc-400 hover:text-white"
-        >
-          Cancel
-        </button>
+        {phase !== 'time-up' && (
+          <div className="h-10 w-10 animate-spin rounded-full border-2 border-zinc-700 border-t-purple-500" />
+        )}
+        <p className="text-white">{copy}</p>
+        {phase === 'time-up' ? (
+          <div className="flex flex-col items-center gap-3">
+            <p className="text-sm text-zinc-400">
+              You two didn't both like each other in time — that's how it stays fair for everyone.
+            </p>
+            <button
+              onClick={startSearching}
+              className="rounded-full bg-purple-600 px-5 py-2.5 font-medium text-white"
+            >
+              Find someone new →
+            </button>
+            <button onClick={leaveToHome} className="text-sm text-zinc-400 hover:text-white">
+              Back to home
+            </button>
+          </div>
+        ) : (
+          <button onClick={leaveToHome} className="text-sm text-zinc-400 hover:text-white">
+            Cancel
+          </button>
+        )}
       </div>
     )
   }
 
+  const secondsLeft = MATCH_DEADLINE_SEC - elapsed
+  const showHeartPrompt = elapsed >= HEART_PROMPT_SEC && !bothLiked
+
   return (
     <div className="mx-auto flex h-svh w-full max-w-lg flex-col p-4">
       <div className="mb-3 flex items-center gap-3">
+        <button onClick={leaveToHome} className="text-zinc-400 hover:text-white">
+          ←
+        </button>
         <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-sm text-white">
           <AvatarImage
             equipped={partner?.equipped}
@@ -272,7 +367,37 @@ export function VibeMatch() {
           />
         </div>
         <h1 className="flex-1 font-medium text-white">{partner?.username ?? '…'}</h1>
+        {!bothLiked && (
+          <span className={`text-xs ${showHeartPrompt ? 'text-pink-400' : 'text-zinc-500'}`}>
+            {formatCountdown(secondsLeft)}
+          </span>
+        )}
       </div>
+
+      {justBecameFriends && (
+        <div className="mb-3 rounded-lg bg-pink-950/40 px-3 py-2 text-center text-sm text-pink-300">
+          🎉 You two liked each other — you're friends now!
+        </div>
+      )}
+
+      {!bothLiked && showHeartPrompt && (
+        <div className="mb-3 flex items-center justify-between rounded-lg border border-pink-800/50 bg-pink-950/30 px-3 py-2 text-sm">
+          <span className="text-zinc-200">
+            {partnerLiked
+              ? `${partner?.username} liked you! Like back to keep chatting.`
+              : iLiked
+                ? 'Waiting for them to like back…'
+                : 'Like each other to keep the conversation going.'}
+          </span>
+          <button
+            onClick={handleLike}
+            disabled={likeBusy || iLiked}
+            className="rounded-lg bg-pink-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+          >
+            {iLiked ? '❤️ Liked' : '🤍 Like'}
+          </button>
+        </div>
+      )}
 
       <div className="mb-3 flex gap-2">
         <button
@@ -281,6 +406,15 @@ export function VibeMatch() {
         >
           Next
         </button>
+        {!bothLiked && !showHeartPrompt && (
+          <button
+            onClick={handleLike}
+            disabled={likeBusy || iLiked}
+            className="flex-1 rounded-lg border border-pink-700 px-3 py-1.5 text-sm text-pink-400 disabled:opacity-50"
+          >
+            {iLiked ? '❤️ Liked' : '🤍 Like'}
+          </button>
+        )}
         <button
           onClick={handleBlock}
           disabled={blockBusy}
