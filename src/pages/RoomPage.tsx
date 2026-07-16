@@ -101,6 +101,7 @@ export function RoomPage() {
   const [giftSendError, setGiftSendError] = useState<string | null>(null)
   const [activeGiftAnim, setActiveGiftAnim] = useState<GiftAnimPayload | null>(null)
   const [ejected, setEjected] = useState(false)
+  const [joinDenied, setJoinDenied] = useState(false)
 
   const livekitRoomRef = useRef<Room | null>(null)
   const audioContainerRef = useRef<HTMLDivElement | null>(null)
@@ -240,12 +241,16 @@ export function RoomPage() {
     let active = true
 
     async function setup() {
-      await supabase
+      const { error: joinError } = await supabase
         .from('room_members')
         .insert({ room_id: roomId, user_id: userId })
-        .then(({ error }) => {
-          if (error && error.code !== '23505') console.error(error)
-        })
+      if (joinError && joinError.code !== '23505') {
+        // Not a "already joined" conflict — most likely RLS rejected us
+        // because this hangout is invite-only and we're not on the list.
+        if (!active) return
+        setJoinDenied(true)
+        return
+      }
       if (!active) return
       await Promise.all([loadMembers(roomId!), loadMessages(roomId!), loadSupporters(roomId!)])
       if (!active) return
@@ -445,6 +450,16 @@ export function RoomPage() {
     return (
       <div className="p-6 text-center">
         <p className="text-zinc-400">Room not found.</p>
+        <button onClick={() => navigate('/')} className="mt-2 text-purple-400 hover:underline">
+          Back home
+        </button>
+      </div>
+    )
+  }
+  if (joinDenied) {
+    return (
+      <div className="p-6 text-center">
+        <p className="text-zinc-400">This hangout is invite-only, and you haven't been invited.</p>
         <button onClick={() => navigate('/')} className="mt-2 text-purple-400 hover:underline">
           Back home
         </button>
