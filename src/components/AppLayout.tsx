@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { TopBar } from './TopBar'
 import { BottomNav } from './BottomNav'
 import { NotificationListener } from './NotificationListener'
+import { PresenceHeartbeat } from './PresenceHeartbeat'
 import { useNotificationStore } from '../store/notificationStore'
 
 function GiftToast() {
@@ -19,6 +20,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-svh flex-col bg-zinc-950">
       <NotificationListener />
+      <PresenceHeartbeat />
       <GiftToast />
       <TopBar />
       <main className="mx-auto w-full max-w-md flex-1 overflow-y-auto pb-20">{children}</main>
