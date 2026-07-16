@@ -51,6 +51,7 @@ export function VibeMatch() {
   const [likes, setLikes] = useState({ liked_a: false, liked_b: false })
   const [likeBusy, setLikeBusy] = useState(false)
   const [justBecameFriends, setJustBecameFriends] = useState(false)
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
   const chatEndRef = useRef<HTMLDivElement | null>(null)
   const timeoutHandledRef = useRef(false)
 
@@ -356,7 +357,7 @@ export function VibeMatch() {
   return (
     <div className="mx-auto flex h-svh w-full max-w-lg flex-col p-4">
       <div className="mb-3 flex items-center gap-3">
-        <button onClick={leaveToHome} className="text-zinc-400 hover:text-white">
+        <button onClick={() => setShowLeaveConfirm(true)} className="text-zinc-400 hover:text-white">
           ←
         </button>
         <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-sm text-white">
@@ -431,6 +432,30 @@ export function VibeMatch() {
       </div>
       {reportDone && <p className="mb-2 text-center text-xs text-emerald-400">Report submitted.</p>}
       {error && <p className="mb-2 text-center text-xs text-red-400">{error}</p>}
+
+      {showLeaveConfirm && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60">
+          <div className="mx-4 w-full max-w-xs rounded-2xl bg-zinc-900 p-4 text-center">
+            <p className="mb-4 text-sm text-white">
+              Are you sure you wanna go back and leave the conversation?
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowLeaveConfirm(false)}
+                className="flex-1 rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300"
+              >
+                Stay
+              </button>
+              <button
+                onClick={leaveToHome}
+                className="flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white"
+              >
+                Leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {reporting && (
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60">
