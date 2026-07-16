@@ -4,9 +4,8 @@ import { useHomeSocial } from '../hooks/useHomeSocial'
 import { AvatarImage } from '../components/AvatarImage'
 import { FriendsIcon } from '../components/icons'
 
-// Rooms/browse/VibeMatch were pulled from here per the regional-match
-// relaunch spec — the launch product is 1:1 random match, not open rooms.
-// This page is intentionally sparse until that match flow lands.
+// Rooms/browse were pulled from here per the regional-match relaunch spec
+// — the launch product is 1:1 random match, not open rooms.
 export function Home() {
   const profile = useAuthStore((s) => s.profile)
   const { onlineFriends } = useHomeSocial()
@@ -15,10 +14,13 @@ export function Home() {
     <div className="flex flex-col gap-6 p-4">
       <p className="text-sm text-zinc-400">Welcome back, {profile?.username}</p>
 
-      <section className="rounded-xl border border-dashed border-zinc-700 bg-zinc-900/50 p-6 text-center">
-        <p className="font-medium text-white">Random match is coming here</p>
-        <p className="mt-1 text-sm text-zinc-500">1:1 text and voice matching, launching soon.</p>
-      </section>
+      <Link
+        to="/vibematch"
+        className="rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 p-6 text-center shadow-lg"
+      >
+        <p className="text-lg font-semibold text-white">✨ Start VibeMatch</p>
+        <p className="mt-1 text-sm text-white/80">Meet someone new, right now.</p>
+      </Link>
 
       <Link to="/following" className="flex w-fit flex-col items-center gap-1.5">
         <span className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-600/20 text-purple-400">
