@@ -39,6 +39,12 @@ export async function likeMatchPartner(sessionId: string): Promise<MatchSession>
   return data
 }
 
+export async function getMyVoiceMinglesRemaining(): Promise<number> {
+  const { data, error } = await supabase.rpc('my_voice_mingles_remaining')
+  if (error) throw error
+  return data as number
+}
+
 export async function getSessionState(
   sessionId: string,
 ): Promise<Pick<MatchSession, 'ended_at' | 'liked_a' | 'liked_b'> | null> {

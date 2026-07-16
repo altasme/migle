@@ -6,7 +6,7 @@ function IconButton({ label, children }: { label: string; children: React.ReactN
     <button
       type="button"
       disabled
-      title={`${label} — coming soon`}
+      title={`${label}: coming soon`}
       className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white/60 backdrop-blur-sm disabled:cursor-not-allowed"
     >
       {children}

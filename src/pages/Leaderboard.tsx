@@ -62,7 +62,7 @@ export function Leaderboard() {
       {loading ? (
         <p className="text-sm text-zinc-500">Loading…</p>
       ) : rows.length === 0 ? (
-        <p className="text-sm text-zinc-500">No couples yet — be the first to partner up.</p>
+        <p className="text-sm text-zinc-500">No couples yet. Be the first to partner up.</p>
       ) : (
         <div className="flex flex-col gap-2">
           {rows.map((r, i) => (
