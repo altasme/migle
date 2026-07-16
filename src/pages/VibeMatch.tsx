@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Room, RoomEvent, Track } from 'livekit-client'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { AvatarImage } from '../components/AvatarImage'
 import { blockUser, reportUser } from '../lib/safety'
+import { fetchMatchVoiceToken, LIVEKIT_URL } from '../lib/livekit'
 import {
   requestMatch,
   endMatch,
@@ -52,7 +54,13 @@ export function VibeMatch() {
   const [likeBusy, setLikeBusy] = useState(false)
   const [justBecameFriends, setJustBecameFriends] = useState(false)
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
+  const [pendingMode, setPendingMode] = useState<'text' | 'voice'>('text')
+  const [voiceStatus, setVoiceStatus] = useState<'connecting' | 'connected' | 'error'>('connecting')
+  const [voiceError, setVoiceError] = useState<string | null>(null)
+  const [isMuted, setIsMuted] = useState(false)
   const chatEndRef = useRef<HTMLDivElement | null>(null)
+  const audioContainerRef = useRef<HTMLDivElement | null>(null)
+  const livekitRoomRef = useRef<Room | null>(null)
   const timeoutHandledRef = useRef(false)
 
   const iAmA = session?.user_a === userId
@@ -102,11 +110,12 @@ export function VibeMatch() {
     setPhase('matched')
   }
 
-  async function startSearching() {
+  async function startSearching(mode: 'text' | 'voice' = pendingMode) {
+    setPendingMode(mode)
     setError(null)
     setPhase('waiting')
     try {
-      const found = await requestMatch('text')
+      const found = await requestMatch(mode)
       if (found) enterMatch(found)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.')
@@ -125,7 +134,7 @@ export function VibeMatch() {
     if (phase !== 'waiting') return
     const id = setInterval(async () => {
       try {
-        const found = await requestMatch('text')
+        const found = await requestMatch(pendingMode)
         if (found) enterMatch(found)
       } catch {
         // Transient errors just get retried on the next tick.
@@ -133,7 +142,7 @@ export function VibeMatch() {
     }, WAITING_POLL_MS)
     return () => clearInterval(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, userId])
+  }, [phase, userId, pendingMode])
 
   // While matched, watch for the partner ending the session (Next, block,
   // leaving) and keep our copy of both like flags fresh.
@@ -184,7 +193,7 @@ export function VibeMatch() {
   }, [phase, session])
 
   useEffect(() => {
-    if (phase !== 'matched' || !session) return
+    if (phase !== 'matched' || !session || session.mode !== 'text') return
     let active = true
 
     async function refresh() {
@@ -213,6 +222,70 @@ export function VibeMatch() {
       supabase.removeChannel(channel)
     }
   }, [phase, session])
+
+  // Voice mode: connect to the per-session LiveKit room. Both participants
+  // in an active voice match can always publish (see livekit-match-token)
+  // — there's no seat concept for a 1:1 match. Torn down whenever we leave
+  // 'matched' (Next, block, partner-left, time-up) or unmount, same as the
+  // text chat subscription above.
+  useEffect(() => {
+    if (phase !== 'matched' || !session || session.mode !== 'voice') return
+    if (!LIVEKIT_URL) {
+      setVoiceStatus('error')
+      setVoiceError('Voice is not configured.')
+      return
+    }
+    let cancelled = false
+    setVoiceStatus('connecting')
+    setVoiceError(null)
+    setIsMuted(false)
+
+    async function connect() {
+      try {
+        const token = await fetchMatchVoiceToken(session!.id)
+        if (cancelled) return
+        const lkRoom = new Room()
+        lkRoom.on(RoomEvent.TrackSubscribed, (track) => {
+          if (track.kind === Track.Kind.Audio) {
+            const el = track.attach()
+            el.autoplay = true
+            audioContainerRef.current?.appendChild(el)
+          }
+        })
+        lkRoom.on(RoomEvent.TrackUnsubscribed, (track) => {
+          track.detach().forEach((el) => el.remove())
+        })
+        livekitRoomRef.current = lkRoom
+        await lkRoom.connect(LIVEKIT_URL!, token)
+        if (cancelled) {
+          await lkRoom.disconnect()
+          return
+        }
+        await lkRoom.localParticipant.setMicrophoneEnabled(true)
+        setVoiceStatus('connected')
+      } catch (err) {
+        if (!cancelled) {
+          setVoiceStatus('error')
+          setVoiceError(err instanceof Error ? err.message : 'Failed to connect voice')
+        }
+      }
+    }
+    connect()
+
+    return () => {
+      cancelled = true
+      livekitRoomRef.current?.disconnect()
+      livekitRoomRef.current = null
+    }
+  }, [phase, session])
+
+  async function toggleMute() {
+    const lkRoom = livekitRoomRef.current
+    if (!lkRoom) return
+    const next = !isMuted
+    await lkRoom.localParticipant.setMicrophoneEnabled(!next)
+    setIsMuted(next)
+  }
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault()
@@ -297,17 +370,16 @@ export function VibeMatch() {
         {error && <p className="text-sm text-red-400">{error}</p>}
         <div className="flex w-full flex-col gap-3">
           <button
-            onClick={startSearching}
+            onClick={() => startSearching('text')}
             className="rounded-full bg-purple-600 px-4 py-3 font-semibold text-white"
           >
             💬 Text
           </button>
           <button
-            disabled
-            title="Voice — coming soon"
-            className="rounded-full border border-zinc-700 px-4 py-3 font-semibold text-zinc-500"
+            onClick={() => startSearching('voice')}
+            className="rounded-full border border-purple-600 px-4 py-3 font-semibold text-purple-400"
           >
-            🎙️ Voice — coming soon
+            🎙️ Voice
           </button>
         </div>
       </div>
@@ -333,7 +405,7 @@ export function VibeMatch() {
               You two didn't both like each other in time — that's how it stays fair for everyone.
             </p>
             <button
-              onClick={startSearching}
+              onClick={() => startSearching()}
               className="rounded-full bg-purple-600 px-5 py-2.5 font-medium text-white"
             >
               Find someone new →
@@ -494,35 +566,64 @@ export function VibeMatch() {
         </div>
       )}
 
-      <div className="flex-1 space-y-1 overflow-y-auto rounded-lg border border-zinc-800 p-3">
-        {messages.length === 0 && <p className="text-center text-sm text-zinc-500">Say hi 👋</p>}
-        {messages.map((m) => (
-          <div key={m.id} className={m.sender_id === userId ? 'text-right' : 'text-left'}>
-            <span
-              className={`inline-block max-w-[75%] rounded-lg px-3 py-1.5 text-sm ${
-                m.sender_id === userId ? 'bg-purple-600 text-white' : 'bg-zinc-800 text-zinc-200'
-              }`}
-            >
-              {m.body}
-            </span>
+      {session?.mode === 'voice' ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-lg border border-zinc-800 p-6">
+          <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-white">
+            <AvatarImage
+              equipped={partner?.equipped}
+              fallbackLetter={partner?.username[0]?.toUpperCase() ?? '?'}
+              className="h-full w-full object-contain"
+            />
           </div>
-        ))}
-        <div ref={chatEndRef} />
-      </div>
+          <p className="text-sm text-zinc-400">
+            {voiceStatus === 'connecting' && 'Connecting…'}
+            {voiceStatus === 'connected' && '🎙️ Voice connected'}
+            {voiceStatus === 'error' && (voiceError ?? 'Voice connection failed')}
+          </p>
+          <button
+            onClick={toggleMute}
+            disabled={voiceStatus !== 'connected'}
+            className={`rounded-full px-5 py-2.5 text-sm font-medium disabled:opacity-50 ${
+              isMuted ? 'bg-red-600 text-white' : 'border border-zinc-700 text-zinc-300'
+            }`}
+          >
+            {isMuted ? '🔇 Unmute' : '🎤 Mute'}
+          </button>
+          <div ref={audioContainerRef} />
+        </div>
+      ) : (
+        <>
+          <div className="flex-1 space-y-1 overflow-y-auto rounded-lg border border-zinc-800 p-3">
+            {messages.length === 0 && <p className="text-center text-sm text-zinc-500">Say hi 👋</p>}
+            {messages.map((m) => (
+              <div key={m.id} className={m.sender_id === userId ? 'text-right' : 'text-left'}>
+                <span
+                  className={`inline-block max-w-[75%] rounded-lg px-3 py-1.5 text-sm ${
+                    m.sender_id === userId ? 'bg-purple-600 text-white' : 'bg-zinc-800 text-zinc-200'
+                  }`}
+                >
+                  {m.body}
+                </span>
+              </div>
+            ))}
+            <div ref={chatEndRef} />
+          </div>
 
-      <form onSubmit={handleSend} className="mt-2 flex gap-2">
-        <input
-          type="text"
-          maxLength={1000}
-          placeholder="Message…"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
-        />
-        <button type="submit" className="rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white">
-          Send
-        </button>
-      </form>
+          <form onSubmit={handleSend} className="mt-2 flex gap-2">
+            <input
+              type="text"
+              maxLength={1000}
+              placeholder="Message…"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
+            />
+            <button type="submit" className="rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white">
+              Send
+            </button>
+          </form>
+        </>
+      )}
     </div>
   )
 }
