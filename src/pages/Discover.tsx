@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { AvatarImage } from '../components/AvatarImage'
 import { getBlockedPairIds } from '../lib/safety'
+import { followUser, unfollowUser, getFollowingIds } from '../lib/follows'
 
 type Profile = {
   id: string
@@ -18,12 +19,14 @@ export function Discover() {
   const [loading, setLoading] = useState(true)
   const [approaching, setApproaching] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [followingIds, setFollowingIds] = useState<Set<string>>(new Set())
+  const [followBusy, setFollowBusy] = useState<string | null>(null)
 
   useEffect(() => {
     if (!userId) return
     const uid = userId
     async function load() {
-      const [{ data: profs }, blockedIds] = await Promise.all([
+      const [{ data: profs }, blockedIds, following] = await Promise.all([
         supabase
           .from('profiles')
           .select('id, username, equipped')
@@ -31,12 +34,34 @@ export function Discover() {
           .order('last_seen_at', { ascending: false })
           .limit(50),
         getBlockedPairIds(uid),
+        getFollowingIds(uid),
       ])
       setProfiles((profs ?? []).filter((p) => !blockedIds.has(p.id)))
+      setFollowingIds(following)
       setLoading(false)
     }
     load()
   }, [userId])
+
+  async function toggleFollow(otherId: string) {
+    if (!userId) return
+    setFollowBusy(otherId)
+    try {
+      if (followingIds.has(otherId)) {
+        await unfollowUser(userId, otherId)
+        setFollowingIds((prev) => {
+          const next = new Set(prev)
+          next.delete(otherId)
+          return next
+        })
+      } else {
+        await followUser(userId, otherId)
+        setFollowingIds((prev) => new Set(prev).add(otherId))
+      }
+    } finally {
+      setFollowBusy(null)
+    }
+  }
 
   async function approach(otherId: string) {
     setError(null)
@@ -80,6 +105,17 @@ export function Discover() {
                 className="w-full rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
               >
                 {approaching === p.id ? 'Sending…' : 'Message'}
+              </button>
+              <button
+                onClick={() => toggleFollow(p.id)}
+                disabled={followBusy === p.id}
+                className={`w-full rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50 ${
+                  followingIds.has(p.id)
+                    ? 'border border-zinc-700 text-zinc-300'
+                    : 'border border-purple-600 text-purple-400'
+                }`}
+              >
+                {followBusy === p.id ? '…' : followingIds.has(p.id) ? 'Following' : 'Follow'}
               </button>
             </div>
           ))}
