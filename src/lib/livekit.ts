@@ -11,6 +11,15 @@ export async function fetchLiveKitToken(roomSlug: string) {
   return data
 }
 
+export async function fetchMatchVoiceToken(sessionId: string) {
+  const { data, error } = await supabase.functions.invoke<{ token: string }>('livekit-match-token', {
+    body: { sessionId },
+  })
+  if (error) throw error
+  if (!data) throw new Error('No token returned')
+  return data.token
+}
+
 export const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL as string | undefined
 
 export async function kickFromLiveKit(roomId: string, targetUserId: string) {
