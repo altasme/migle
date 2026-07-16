@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { AvatarImage } from '../components/AvatarImage'
-import { getFollowCounts } from '../lib/follows'
+import { getFriendCount } from '../lib/friends'
 
 type ActiveRelationship = {
   partnerUsername: string
@@ -16,12 +16,12 @@ export function Profile() {
   const session = useAuthStore((s) => s.session)
   const signOut = useAuthStore((s) => s.signOut)
   const [relationship, setRelationship] = useState<ActiveRelationship | null>(null)
-  const [counts, setCounts] = useState({ followers: 0, following: 0 })
+  const [friendCount, setFriendCount] = useState(0)
 
   useEffect(() => {
     const uid = session?.user.id
     if (!uid) return
-    getFollowCounts(uid).then(setCounts)
+    getFriendCount(uid).then(setFriendCount)
   }, [session?.user.id])
 
   useEffect(() => {
@@ -73,16 +73,10 @@ export function Profile() {
         <p className="text-sm text-zinc-500">{session?.user.email}</p>
       </div>
 
-      <div className="flex gap-6">
-        <Link to="/followers" className="text-center">
-          <div className="text-lg font-semibold text-white">{counts.followers}</div>
-          <div className="text-xs text-zinc-500">Followers</div>
-        </Link>
-        <Link to="/following" className="text-center">
-          <div className="text-lg font-semibold text-white">{counts.following}</div>
-          <div className="text-xs text-zinc-500">Following</div>
-        </Link>
-      </div>
+      <Link to="/friends" className="text-center">
+        <div className="text-lg font-semibold text-white">{friendCount}</div>
+        <div className="text-xs text-zinc-500">Friends</div>
+      </Link>
 
       {relationship && (
         <div className="rounded-lg border border-pink-900/50 bg-pink-950/30 px-4 py-2 text-sm">

@@ -22,7 +22,7 @@ export function Home() {
         <p className="mt-1 text-sm text-white/80">Meet someone new, right now.</p>
       </Link>
 
-      <Link to="/following" className="flex w-fit flex-col items-center gap-1.5">
+      <Link to="/friends" className="flex w-fit flex-col items-center gap-1.5">
         <span className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-600/20 text-purple-400">
           <FriendsIcon className="h-6 w-6" />
         </span>
@@ -34,7 +34,7 @@ export function Home() {
           <h2 className="mb-3 text-sm font-medium text-zinc-400">Friends online</h2>
           <div className="flex gap-3 overflow-x-auto pb-1">
             {onlineFriends.map((f) => (
-              <Link key={f.id} to="/following" className="flex flex-shrink-0 flex-col items-center gap-1">
+              <Link key={f.id} to="/friends" className="flex flex-shrink-0 flex-col items-center gap-1">
                 <span className="relative">
                   <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-white">
                     <AvatarImage

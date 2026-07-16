@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
-import { getFollowingIds } from '../lib/follows'
+import { getFriendIds } from '../lib/friends'
 import { isOnline } from '../lib/presence'
 
 export type OnlineFriend = { id: string; username: string; equipped: Record<string, string> }
@@ -17,14 +17,14 @@ export function useHomeSocial() {
 
   const refresh = useCallback(async () => {
     if (!userId) return
-    const followingIds = await getFollowingIds(userId)
-    if (followingIds.size === 0) {
+    const friendIds = await getFriendIds(userId)
+    if (friendIds.size === 0) {
       setOnlineFriends([])
       setFriendInRoom(null)
       setLoading(false)
       return
     }
-    const ids = [...followingIds]
+    const ids = [...friendIds]
 
     const [{ data: profs }, { data: memberRows }] = await Promise.all([
       supabase.from('profiles').select('id, username, equipped, last_seen_at').in('id', ids),
