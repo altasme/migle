@@ -77,7 +77,7 @@ export function Chat() {
       {loading ? (
         <p className="text-sm text-zinc-500">Loading…</p>
       ) : threads.length === 0 ? (
-        <p className="text-sm text-zinc-500">No conversations yet — find someone in Discover.</p>
+        <p className="text-sm text-zinc-500">No conversations yet.</p>
       ) : (
         <div className="flex flex-col gap-2">
           {threads.map((t) => {

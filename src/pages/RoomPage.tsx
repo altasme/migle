@@ -481,7 +481,7 @@ export function RoomPage() {
 
       <p className="text-xs text-zinc-500">
         Voice: {voiceStatus}
-        {voiceError ? ` — ${voiceError}` : ''}
+        {voiceError ? `: ${voiceError}` : ''}
       </p>
 
       <div className="grid grid-cols-4 gap-3">

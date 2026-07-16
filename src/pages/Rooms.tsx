@@ -39,7 +39,7 @@ export function Rooms() {
         <p className="text-sm text-zinc-500">Loading…</p>
       ) : rooms.length === 0 ? (
         <p className="text-sm text-zinc-500">
-          No rooms open right now. Be the first — create one from Home.
+          No rooms open right now. Be the first. Create one from Home.
         </p>
       ) : (
         <ul className="flex flex-col gap-2">

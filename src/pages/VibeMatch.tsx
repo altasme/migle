@@ -11,6 +11,7 @@ import {
   endMatch,
   likeMatchPartner,
   getSessionState,
+  getMyVoiceMinglesRemaining,
   fetchMatchMessages,
   sendMatchMessage,
   type MatchSession,
@@ -58,6 +59,7 @@ export function VibeMatch() {
   const [voiceStatus, setVoiceStatus] = useState<'connecting' | 'connected' | 'error'>('connecting')
   const [voiceError, setVoiceError] = useState<string | null>(null)
   const [isMuted, setIsMuted] = useState(false)
+  const [voiceMinglesLeft, setVoiceMinglesLeft] = useState<number | null>(null)
   const chatEndRef = useRef<HTMLDivElement | null>(null)
   const audioContainerRef = useRef<HTMLDivElement | null>(null)
   const livekitRoomRef = useRef<Room | null>(null)
@@ -76,6 +78,10 @@ export function VibeMatch() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ block: 'end' })
   }, [messages])
+
+  useEffect(() => {
+    getMyVoiceMinglesRemaining().then(setVoiceMinglesLeft).catch(() => {})
+  }, [])
 
   // Leaving the page mid-search or mid-match tears things down — matches
   // are ephemeral, not a persistent conversation to come back to.
@@ -108,6 +114,9 @@ export function VibeMatch() {
     setSession(found)
     loadPartner(found)
     setPhase('matched')
+    if (found.mode === 'voice') {
+      setVoiceMinglesLeft((n) => (n === null ? n : Math.max(0, n - 1)))
+    }
   }
 
   async function startSearching(mode: 'text' | 'voice' = pendingMode) {
@@ -118,7 +127,12 @@ export function VibeMatch() {
       const found = await requestMatch(mode)
       if (found) enterMatch(found)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong.')
+      if (err instanceof Error && err.message.includes('voice_limit_reached')) {
+        setVoiceMinglesLeft(0)
+        setError("You've used today's 5 free Voice Mingles. Try text, or come back tomorrow.")
+      } else {
+        setError(err instanceof Error ? err.message : 'Something went wrong.')
+      }
       setPhase('select')
     }
   }
@@ -255,6 +269,13 @@ export function VibeMatch() {
         lkRoom.on(RoomEvent.TrackUnsubscribed, (track) => {
           track.detach().forEach((el) => el.remove())
         })
+        // Don't wait for the 3s match_sessions poll to notice a dropped
+        // call (app killed, network loss) — react to LiveKit itself.
+        lkRoom.on(RoomEvent.ParticipantDisconnected, () => {
+          if (cancelled) return
+          endMatch(session!.id).catch(() => {})
+          setPhase('partner-left')
+        })
         livekitRoomRef.current = lkRoom
         await lkRoom.connect(LIVEKIT_URL!, token)
         if (cancelled) {
@@ -377,10 +398,18 @@ export function VibeMatch() {
           </button>
           <button
             onClick={() => startSearching('voice')}
-            className="rounded-full border border-purple-600 px-4 py-3 font-semibold text-purple-400"
+            disabled={voiceMinglesLeft === 0}
+            className="rounded-full border border-purple-600 px-4 py-3 font-semibold text-purple-400 disabled:cursor-not-allowed disabled:border-zinc-700 disabled:text-zinc-500"
           >
             🎙️ Voice
           </button>
+          <p className="text-xs text-zinc-500">
+            {voiceMinglesLeft === 0
+              ? "🎤 You've used today's 5 free Voice Mingles"
+              : voiceMinglesLeft !== null
+                ? `🎤 ${voiceMinglesLeft} free Voice Mingle${voiceMinglesLeft === 1 ? '' : 's'} left today`
+                : ''}
+          </p>
         </div>
       </div>
     )
@@ -402,7 +431,7 @@ export function VibeMatch() {
         {phase === 'time-up' ? (
           <div className="flex flex-col items-center gap-3">
             <p className="text-sm text-zinc-400">
-              You two didn't both like each other in time — that's how it stays fair for everyone.
+              You two didn't both like each other in time. That's how it stays fair for everyone.
             </p>
             <button
               onClick={() => startSearching()}
@@ -449,7 +478,7 @@ export function VibeMatch() {
 
       {justBecameFriends && (
         <div className="mb-3 rounded-lg bg-pink-950/40 px-3 py-2 text-center text-sm text-pink-300">
-          🎉 You two liked each other — you're friends now!
+          🎉 You two liked each other. You're friends now!
         </div>
       )}
 

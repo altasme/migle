@@ -100,7 +100,7 @@ export function AdminReports() {
               <p className="text-white">
                 {r.reporterUsername} reported <span className="font-medium">{r.reportedUsername}</span>
               </p>
-              <p className="text-xs text-zinc-400">Reason: {r.reason ?? '—'}</p>
+              <p className="text-xs text-zinc-400">Reason: {r.reason ?? 'No reason given'}</p>
               <p className="text-xs text-zinc-500">
                 {new Date(r.occurred_at).toLocaleString()} · {r.room_id ? 'in a room' : 'in a DM'} ·{' '}
                 {r.status}

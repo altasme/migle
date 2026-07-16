@@ -54,7 +54,7 @@ export function ProfileOnboarding() {
     return (
       <div className="mx-auto flex w-full max-w-sm flex-col gap-4 p-6">
         <h1 className="text-2xl font-semibold text-white">What are you into?</h1>
-        <p className="text-sm text-zinc-400">Pick a few — helps people find common ground with you.</p>
+        <p className="text-sm text-zinc-400">Pick a few. It helps people find common ground with you.</p>
 
         <div className="flex flex-wrap gap-2">
           {INTEREST_OPTIONS.map((opt) => (
