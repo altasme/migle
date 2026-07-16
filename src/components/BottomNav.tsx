@@ -1,12 +1,14 @@
 import { NavLink } from 'react-router-dom'
-import { HomeIcon, RoomsIcon, ChatIcon, FriendsIcon, ProfileIcon } from './icons'
+import { HomeIcon, ChatIcon, ProfileIcon } from './icons'
 import { useNotificationStore } from '../store/notificationStore'
 
+// Rooms and Discover are pulled from nav per the regional-match relaunch
+// spec (public rooms / discovery grid / DM-to-strangers are "NOT in
+// launch"). Routes and pages are left intact — only the entry points are
+// gone — since the plan is to bring rooms back later as friends-only.
 const tabs = [
   { to: '/', label: 'Home', Icon: HomeIcon, end: true },
-  { to: '/rooms', label: 'Rooms', Icon: RoomsIcon, end: false },
   { to: '/chat', label: 'Chat', Icon: ChatIcon, end: false },
-  { to: '/discover', label: 'Discover', Icon: FriendsIcon, end: false },
   { to: '/profile', label: 'Profile', Icon: ProfileIcon, end: false },
 ]
 

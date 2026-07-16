@@ -4,7 +4,6 @@ import { useAuthStore } from './store/authStore'
 import { AuthGate } from './components/AuthGate'
 import { SplashScreen } from './components/SplashScreen'
 import { UsernameClaim } from './components/UsernameClaim'
-import { ProfileOnboarding } from './components/ProfileOnboarding'
 import { AppLayout } from './components/AppLayout'
 import { Home } from './pages/Home'
 import { Rooms } from './pages/Rooms'
@@ -42,14 +41,6 @@ function AppShell() {
     return (
       <Centered>
         <UsernameClaim />
-      </Centered>
-    )
-  }
-
-  if (!profile.onboarded) {
-    return (
-      <Centered>
-        <ProfileOnboarding />
       </Centered>
     )
   }
