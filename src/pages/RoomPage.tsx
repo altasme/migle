@@ -616,7 +616,7 @@ export function RoomPage() {
     setJamendoSearching(true)
     setJamendoError(null)
     try {
-      setJamendoResults(await fetchJamendoByTag(tag))
+      setJamendoResults(await fetchJamendoByTag(tag, label))
     } catch (err) {
       setJamendoError(err instanceof Error ? err.message : 'Failed to load category.')
     } finally {
