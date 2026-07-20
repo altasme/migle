@@ -10,6 +10,7 @@ import { SafetyMenu } from '../components/SafetyMenu'
 import { FriendInviteList } from '../components/FriendInviteList'
 import { listFriends, type Friend } from '../lib/friends'
 import { getInvitedFriendIds, inviteFriendToRoom } from '../lib/hangouts'
+import { searchJamendoTracks, type JamendoTrack } from '../lib/jamendo'
 
 type GiftCatalogItem = {
   id: string
@@ -118,6 +119,12 @@ export function RoomPage() {
   const [musicError, setMusicError] = useState<string | null>(null)
   const [musicPaused, setMusicPaused] = useState(false)
   const [musicVolume, setMusicVolume] = useState(1)
+  const [musicPickerOpen, setMusicPickerOpen] = useState(false)
+  const [musicTab, setMusicTab] = useState<'device' | 'jamendo'>('device')
+  const [jamendoQuery, setJamendoQuery] = useState('')
+  const [jamendoResults, setJamendoResults] = useState<JamendoTrack[]>([])
+  const [jamendoSearching, setJamendoSearching] = useState(false)
+  const [jamendoError, setJamendoError] = useState<string | null>(null)
 
   const livekitRoomRef = useRef<Room | null>(null)
   const audioContainerRef = useRef<HTMLDivElement | null>(null)
@@ -502,20 +509,13 @@ export function RoomPage() {
     setMusicPaused(false)
   }
 
-  // Web apps can't read a phone's actual song library - there's no
-  // browser API for that. This is the closest real equivalent: pick a
-  // file each time via the native picker, then capture its audio output
-  // and publish it as an extra LiveKit track. Everyone else's existing
-  // TrackSubscribed handler picks it up automatically, same as any other
-  // audio track - no changes needed on the listening side.
-  async function handleMusicFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file || !roomId || !me) return
-    // The button that opens this picker only renders for isOwner, but
-    // check again here too in case the hidden input ever gets triggered
-    // some other way.
-    if (!isOwner) return
+  // Shared by both music sources below: capture the hidden <audio>
+  // element's output and publish it as an extra LiveKit track. Everyone
+  // else's existing TrackSubscribed handler picks it up automatically,
+  // same as any other audio track - no changes needed on the listening
+  // side either way.
+  async function startPlayingSource(src: string, title: string, opts?: { crossOrigin?: boolean }) {
+    if (!roomId || !me || !isOwner) return
 
     // Publishing anything requires a mic seat - canPublish is granted
     // server-side based on seat status (Rule 4), there's no separate
@@ -547,10 +547,11 @@ export function RoomPage() {
     setMusicError(null)
     try {
       stopMusicLocal()
-      const url = URL.createObjectURL(file)
-      musicObjectUrlRef.current = url
-      audioEl.src = url
-      audioEl.loop = true
+      if (opts?.crossOrigin) audioEl.crossOrigin = 'anonymous'
+      else audioEl.removeAttribute('crossorigin')
+      if (src.startsWith('blob:')) musicObjectUrlRef.current = src
+      audioEl.src = src
+      audioEl.loop = !opts?.crossOrigin
       audioEl.volume = musicVolume
       await audioEl.play()
 
@@ -565,16 +566,45 @@ export function RoomPage() {
       // Realtime broadcast doesn't echo back to the sender by default -
       // update our own copy directly, same pattern sendGift() already
       // uses for its animation instead of waiting on self-receipt.
-      setNowPlaying({ title: file.name, djUsername: me.username, paused: false })
+      setNowPlaying({ title, djUsername: me.username, paused: false })
 
       channelRef.current?.send({
         type: 'broadcast',
         event: 'music',
-        payload: { action: 'play', title: file.name, djUsername: me.username },
+        payload: { action: 'play', title, djUsername: me.username },
       })
     } catch (err) {
       setMusicStatus('error')
       setMusicError(err instanceof Error ? err.message : 'Failed to play music')
+    }
+  }
+
+  // Web apps can't read a phone's actual song library - there's no
+  // browser API for that. This is the closest real equivalent: pick a
+  // file each time via the native picker.
+  async function handleMusicFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const url = URL.createObjectURL(file)
+    await startPlayingSource(url, file.name)
+  }
+
+  async function handleJamendoPlay(track: JamendoTrack) {
+    setMusicPickerOpen(false)
+    await startPlayingSource(track.audio, `${track.name} (${track.artist_name})`, { crossOrigin: true })
+  }
+
+  async function handleJamendoSearch(e: React.FormEvent) {
+    e.preventDefault()
+    setJamendoSearching(true)
+    setJamendoError(null)
+    try {
+      setJamendoResults(await searchJamendoTracks(jamendoQuery))
+    } catch (err) {
+      setJamendoError(err instanceof Error ? err.message : 'Search failed.')
+    } finally {
+      setJamendoSearching(false)
     }
   }
 
@@ -659,7 +689,7 @@ export function RoomPage() {
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col gap-4 p-4">
       <div ref={audioContainerRef} className="hidden" />
-      <audio ref={musicAudioElRef} className="hidden" />
+      <audio ref={musicAudioElRef} onEnded={handleStopMusic} className="hidden" />
       <input
         ref={musicFileInputRef}
         type="file"
@@ -684,7 +714,7 @@ export function RoomPage() {
           )}
           {isOwner && musicStatus !== 'playing' && musicStatus !== 'starting' && (
             <button
-              onClick={() => musicFileInputRef.current?.click()}
+              onClick={() => setMusicPickerOpen(true)}
               className="rounded-lg border border-purple-600 px-3 py-1.5 text-sm font-medium text-purple-400"
             >
               🎵 Play music
@@ -731,7 +761,7 @@ export function RoomPage() {
                 {musicPaused ? '▶ Play' : '⏸ Pause'}
               </button>
               <button
-                onClick={() => musicFileInputRef.current?.click()}
+                onClick={() => setMusicPickerOpen(true)}
                 className="rounded-lg border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300"
               >
                 ⏭ Next track
@@ -897,6 +927,97 @@ export function RoomPage() {
               invitingId={invitingId}
               onInvite={handleInviteFriend}
             />
+          </div>
+        </div>
+      )}
+
+      {musicPickerOpen && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60">
+          <div className="mx-4 flex max-h-[80vh] w-full max-w-xs flex-col rounded-2xl bg-zinc-900 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-medium text-white">Play music</p>
+              <button
+                onClick={() => setMusicPickerOpen(false)}
+                className="text-zinc-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mb-3 flex gap-2">
+              <button
+                onClick={() => setMusicTab('device')}
+                className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium ${
+                  musicTab === 'device' ? 'bg-purple-600 text-white' : 'border border-zinc-700 text-zinc-300'
+                }`}
+              >
+                This device
+              </button>
+              <button
+                onClick={() => setMusicTab('jamendo')}
+                className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium ${
+                  musicTab === 'jamendo' ? 'bg-purple-600 text-white' : 'border border-zinc-700 text-zinc-300'
+                }`}
+              >
+                Cloud (Jamendo)
+              </button>
+            </div>
+
+            {musicTab === 'device' ? (
+              <div className="flex flex-col items-center gap-3 py-4 text-center">
+                <p className="text-xs text-zinc-500">
+                  Pick a song from your device. It'll stream to everyone in the room.
+                </p>
+                <button
+                  onClick={() => {
+                    setMusicPickerOpen(false)
+                    musicFileInputRef.current?.click()
+                  }}
+                  className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white"
+                >
+                  Choose a file
+                </button>
+              </div>
+            ) : (
+              <div className="flex min-h-0 flex-1 flex-col gap-2">
+                <form onSubmit={handleJamendoSearch} className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Search free/CC tracks…"
+                    value={jamendoQuery}
+                    onChange={(e) => setJamendoQuery(e.target.value)}
+                    className="flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={jamendoSearching}
+                    className="rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                  >
+                    {jamendoSearching ? '…' : 'Search'}
+                  </button>
+                </form>
+                {jamendoError && <p className="text-xs text-red-400">{jamendoError}</p>}
+                <div className="flex-1 overflow-y-auto">
+                  {jamendoResults.length === 0 ? (
+                    <p className="py-4 text-center text-xs text-zinc-500">
+                      Search for a track to get started.
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-1">
+                      {jamendoResults.map((t) => (
+                        <button
+                          key={t.id}
+                          onClick={() => handleJamendoPlay(t)}
+                          className="rounded-lg px-2 py-1.5 text-left text-xs text-zinc-200 hover:bg-zinc-800"
+                        >
+                          <span className="font-medium text-white">{t.name}</span> - {t.artist_name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
