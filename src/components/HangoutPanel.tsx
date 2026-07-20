@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { listFriends, type Friend } from '../lib/friends'
+import { FriendInviteList } from './FriendInviteList'
 import {
   createHangout,
   getMyActiveRoom,
@@ -127,27 +128,14 @@ export function HangoutPanel() {
             {showInvite ? 'Hide friends list' : 'Invite friends →'}
           </button>
 
-          {showInvite &&
-            (friends.length === 0 ? (
-              <p className="text-sm text-zinc-500">
-                No friends yet. Like each other in a Mingling match first.
-              </p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {friends.map((f) => (
-                  <div key={f.id} className="flex items-center justify-between text-sm">
-                    <span className="text-zinc-200">{f.username}</span>
-                    <button
-                      onClick={() => handleInvite(f.id)}
-                      disabled={invitingId === f.id || invitedIds.has(f.id)}
-                      className="rounded-lg border border-purple-600 px-2.5 py-1 text-xs text-purple-400 disabled:border-zinc-700 disabled:text-zinc-500"
-                    >
-                      {invitedIds.has(f.id) ? 'Invited' : invitingId === f.id ? 'Inviting…' : 'Invite'}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ))}
+          {showInvite && (
+            <FriendInviteList
+              friends={friends}
+              invitedIds={invitedIds}
+              invitingId={invitingId}
+              onInvite={handleInvite}
+            />
+          )}
         </div>
       )}
     </section>

@@ -10,6 +10,7 @@ import {
   requestMatch,
   endMatch,
   likeMatchPartner,
+  markMatchReady,
   getSessionState,
   getMyVoiceMinglesRemaining,
   fetchMatchMessages,
@@ -53,6 +54,7 @@ export function VibeMatch() {
   const [error, setError] = useState<string | null>(null)
   const [elapsed, setElapsed] = useState(0)
   const [likes, setLikes] = useState({ liked_a: false, liked_b: false })
+  const [ready, setReady] = useState({ ready_a: false, ready_b: false })
   const [likeBusy, setLikeBusy] = useState(false)
   const [justBecameFriends, setJustBecameFriends] = useState(false)
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
@@ -70,6 +72,7 @@ export function VibeMatch() {
   const iLiked = iAmA ? likes.liked_a : likes.liked_b
   const partnerLiked = iAmA ? likes.liked_b : likes.liked_a
   const bothLiked = likes.liked_a && likes.liked_b
+  const bothReady = ready.ready_a && ready.ready_b
 
   // Tracked for the unmount cleanup below — a plain effect dependency
   // would fire cleanup on every phase change, not just on leaving the page.
@@ -107,16 +110,28 @@ export function VibeMatch() {
     setPartner(data)
   }
 
-  function enterMatch(found: MatchSession) {
+  async function enterMatch(found: MatchSession) {
     timeoutHandledRef.current = false
     setElapsed(0)
     setLikes({ liked_a: found.liked_a, liked_b: found.liked_b })
+    setReady({ ready_a: found.ready_a, ready_b: found.ready_b })
     setJustBecameFriends(false)
     setSession(found)
-    loadPartner(found)
     setPhase('matched')
     if (found.mode === 'voice') {
       setVoiceMinglesLeft((n) => (n === null ? n : Math.max(0, n - 1)))
+    }
+
+    // Only mark ourselves ready once we've actually loaded the partner —
+    // this is the "both sides have each other in their interfaces" check.
+    // Chat/voice stays gated behind bothReady until the poll below sees
+    // the partner has done the same on their side.
+    await loadPartner(found)
+    try {
+      const updated = await markMatchReady(found.id)
+      setReady({ ready_a: updated.ready_a, ready_b: updated.ready_b })
+    } catch {
+      // The next state poll will pick this up if the RPC hiccuped.
     }
   }
 
@@ -173,6 +188,7 @@ export function VibeMatch() {
         return
       }
       setLikes({ liked_a: state.liked_a, liked_b: state.liked_b })
+      setReady({ ready_a: state.ready_a, ready_b: state.ready_b })
     }, STATE_POLL_MS)
     return () => clearInterval(id)
   }, [phase, session])
@@ -600,7 +616,14 @@ export function VibeMatch() {
         </div>
       )}
 
-      {session?.mode === 'voice' ? (
+      {!bothReady ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-lg border border-zinc-800 p-6 text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-700 border-t-purple-500" />
+          <p className="text-sm text-zinc-400">
+            Connecting you with {partner?.username ?? 'them'}…
+          </p>
+        </div>
+      ) : session?.mode === 'voice' ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-lg border border-zinc-800 p-6">
           <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-white">
             <AvatarImage

@@ -1,6 +1,11 @@
 import { supabase } from './supabase'
 
-export type Friend = { id: string; username: string; equipped: Record<string, string> }
+export type Friend = {
+  id: string
+  username: string
+  equipped: Record<string, string>
+  last_seen_at: string | null
+}
 
 export async function listFriends(userId: string): Promise<Friend[]> {
   const { data: links } = await supabase
@@ -10,7 +15,10 @@ export async function listFriends(userId: string): Promise<Friend[]> {
   const ids = (links ?? []).map((r) => (r.user_a === userId ? r.user_b : r.user_a))
   if (ids.length === 0) return []
 
-  const { data: profs } = await supabase.from('profiles').select('id, username, equipped').in('id', ids)
+  const { data: profs } = await supabase
+    .from('profiles')
+    .select('id, username, equipped, last_seen_at')
+    .in('id', ids)
   return (profs ?? []) as Friend[]
 }
 
