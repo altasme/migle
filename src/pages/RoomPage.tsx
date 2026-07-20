@@ -111,9 +111,13 @@ export function RoomPage() {
   const [invitingId, setInvitingId] = useState<string | null>(null)
   const [inviteError, setInviteError] = useState<string | null>(null)
 
-  const [nowPlaying, setNowPlaying] = useState<{ title: string; djUsername: string } | null>(null)
+  const [nowPlaying, setNowPlaying] = useState<{ title: string; djUsername: string; paused: boolean } | null>(
+    null,
+  )
   const [musicStatus, setMusicStatus] = useState<'idle' | 'starting' | 'playing' | 'error'>('idle')
   const [musicError, setMusicError] = useState<string | null>(null)
+  const [musicPaused, setMusicPaused] = useState(false)
+  const [musicVolume, setMusicVolume] = useState(1)
 
   const livekitRoomRef = useRef<Room | null>(null)
   const audioContainerRef = useRef<HTMLDivElement | null>(null)
@@ -305,8 +309,19 @@ export function RoomPage() {
         loadSupporters(roomId!)
       })
       .on('broadcast', { event: 'music' }, ({ payload }) => {
-        const p = payload as { action: 'play' | 'stop'; title?: string; djUsername?: string }
-        setNowPlaying(p.action === 'play' && p.title ? { title: p.title, djUsername: p.djUsername ?? '?' } : null)
+        const p = payload as {
+          action: 'play' | 'stop' | 'pause_state'
+          title?: string
+          djUsername?: string
+          paused?: boolean
+        }
+        if (p.action === 'stop') {
+          setNowPlaying(null)
+        } else if (p.action === 'play' && p.title) {
+          setNowPlaying({ title: p.title, djUsername: p.djUsername ?? '?', paused: false })
+        } else if (p.action === 'pause_state') {
+          setNowPlaying((cur) => (cur ? { ...cur, paused: !!p.paused } : cur))
+        }
       })
       .subscribe((status, err) => {
         console.log('[realtime] channel status:', status, err ?? '')
@@ -484,6 +499,7 @@ export function RoomPage() {
       musicObjectUrlRef.current = null
     }
     setMusicStatus('idle')
+    setMusicPaused(false)
   }
 
   // Web apps can't read a phone's actual song library - there's no
@@ -496,6 +512,20 @@ export function RoomPage() {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file || !roomId || !me) return
+    // The button that opens this picker only renders for isOwner, but
+    // check again here too in case the hidden input ever gets triggered
+    // some other way.
+    if (!isOwner) return
+
+    // Publishing anything requires a mic seat - canPublish is granted
+    // server-side based on seat status (Rule 4), there's no separate
+    // grant tier for "just music". Same requirement, clearer error than
+    // letting LiveKit's own rejection surface as a raw message.
+    if (mySeat === null) {
+      setMusicStatus('error')
+      setMusicError('Take a mic seat first, then you can play music.')
+      return
+    }
 
     const audioEl = musicAudioElRef.current
     const lkRoom = livekitRoomRef.current
@@ -521,6 +551,7 @@ export function RoomPage() {
       musicObjectUrlRef.current = url
       audioEl.src = url
       audioEl.loop = true
+      audioEl.volume = musicVolume
       await audioEl.play()
 
       const stream = captureFn.call(audioEl)
@@ -530,6 +561,11 @@ export function RoomPage() {
 
       await lkRoom.localParticipant.publishTrack(track, { name: 'music' })
       setMusicStatus('playing')
+      setMusicPaused(false)
+      // Realtime broadcast doesn't echo back to the sender by default -
+      // update our own copy directly, same pattern sendGift() already
+      // uses for its animation instead of waiting on self-receipt.
+      setNowPlaying({ title: file.name, djUsername: me.username, paused: false })
 
       channelRef.current?.send({
         type: 'broadcast',
@@ -543,8 +579,32 @@ export function RoomPage() {
   }
 
   function handleStopMusic() {
+    if (!isOwner) return
     stopMusicLocal()
+    setNowPlaying(null)
     channelRef.current?.send({ type: 'broadcast', event: 'music', payload: { action: 'stop' } })
+  }
+
+  function toggleMusicPause() {
+    if (!isOwner) return
+    const audioEl = musicAudioElRef.current
+    if (!audioEl) return
+    const nowPaused = !audioEl.paused
+    if (nowPaused) audioEl.pause()
+    else audioEl.play()
+    setMusicPaused(nowPaused)
+    setNowPlaying((cur) => (cur ? { ...cur, paused: nowPaused } : cur))
+    channelRef.current?.send({
+      type: 'broadcast',
+      event: 'music',
+      payload: { action: 'pause_state', paused: nowPaused },
+    })
+  }
+
+  function handleMusicVolumeChange(v: number) {
+    if (!isOwner) return
+    setMusicVolume(v)
+    if (musicAudioElRef.current) musicAudioElRef.current.volume = v
   }
 
   async function openInvitePanel() {
@@ -622,22 +682,14 @@ export function RoomPage() {
               👥 Invite
             </button>
           )}
-          {isOwner &&
-            (musicStatus === 'playing' || musicStatus === 'starting' ? (
-              <button
-                onClick={handleStopMusic}
-                className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300"
-              >
-                ⏹ Stop music
-              </button>
-            ) : (
-              <button
-                onClick={() => musicFileInputRef.current?.click()}
-                className="rounded-lg border border-purple-600 px-3 py-1.5 text-sm font-medium text-purple-400"
-              >
-                🎵 Play music
-              </button>
-            ))}
+          {isOwner && musicStatus !== 'playing' && musicStatus !== 'starting' && (
+            <button
+              onClick={() => musicFileInputRef.current?.click()}
+              className="rounded-lg border border-purple-600 px-3 py-1.5 text-sm font-medium text-purple-400"
+            >
+              🎵 Play music
+            </button>
+          )}
           <button
             onClick={() => setGiftModalOpen(true)}
             className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-medium text-white"
@@ -661,12 +713,47 @@ export function RoomPage() {
       {musicError && <p className="text-xs text-red-400">{musicError}</p>}
 
       {nowPlaying && (
-        <div className="flex items-center gap-2 rounded-lg border border-purple-800/50 bg-purple-950/30 px-3 py-2 text-sm">
-          <span>🎵</span>
-          <span className="text-zinc-200">
-            <span className="font-medium text-white">{nowPlaying.title}</span> · played by{' '}
-            {nowPlaying.djUsername}
-          </span>
+        <div className="flex flex-col gap-2 rounded-lg border border-purple-800/50 bg-purple-950/30 px-3 py-2 text-sm">
+          <div className="flex items-center gap-2">
+            <span>🎵</span>
+            <span className="flex-1 text-zinc-200">
+              <span className="font-medium text-white">{nowPlaying.title}</span> · played by{' '}
+              {nowPlaying.djUsername}
+              {nowPlaying.paused && <span className="text-zinc-500"> · paused</span>}
+            </span>
+          </div>
+          {isOwner && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleMusicPause}
+                className="rounded-lg border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300"
+              >
+                {musicPaused ? '▶ Play' : '⏸ Pause'}
+              </button>
+              <button
+                onClick={() => musicFileInputRef.current?.click()}
+                className="rounded-lg border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300"
+              >
+                ⏭ Next track
+              </button>
+              <button
+                onClick={handleStopMusic}
+                className="rounded-lg border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300"
+              >
+                ⏹ Stop
+              </button>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={musicVolume}
+                onChange={(e) => handleMusicVolumeChange(Number(e.target.value))}
+                className="flex-1"
+                aria-label="Music volume"
+              />
+            </div>
+          )}
         </div>
       )}
 
