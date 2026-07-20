@@ -24,6 +24,7 @@ type Partner = { id: string; username: string; equipped: Record<string, string> 
 const WAITING_POLL_MS = 2500
 const STATE_POLL_MS = 3000
 const MESSAGE_POLL_MS = 3000
+const LIKE_UNLOCK_SEC = 90
 const HEART_PROMPT_SEC = 120
 const MATCH_DEADLINE_SEC = 180
 const REPORT_REASONS = ['Harassment', 'Underage', 'Spam', 'Inappropriate content', 'Other']
@@ -454,6 +455,7 @@ export function VibeMatch() {
 
   const secondsLeft = MATCH_DEADLINE_SEC - elapsed
   const showHeartPrompt = elapsed >= HEART_PROMPT_SEC && !bothLiked
+  const likeLocked = elapsed < LIKE_UNLOCK_SEC
 
   return (
     <div className="mx-auto flex h-svh w-full max-w-lg flex-col p-4">
@@ -493,7 +495,7 @@ export function VibeMatch() {
           </span>
           <button
             onClick={handleLike}
-            disabled={likeBusy || iLiked}
+            disabled={likeBusy || iLiked || likeLocked}
             className="rounded-lg bg-pink-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
           >
             {iLiked ? '❤️ Liked' : '🤍 Like'}
@@ -511,10 +513,11 @@ export function VibeMatch() {
         {!bothLiked && !showHeartPrompt && (
           <button
             onClick={handleLike}
-            disabled={likeBusy || iLiked}
+            disabled={likeBusy || iLiked || likeLocked}
+            title={likeLocked ? 'You can like each other after the first minute and a half' : undefined}
             className="flex-1 rounded-lg border border-pink-700 px-3 py-1.5 text-sm text-pink-400 disabled:opacity-50"
           >
-            {iLiked ? '❤️ Liked' : '🤍 Like'}
+            {iLiked ? '❤️ Liked' : likeLocked ? `🤍 Like (${formatCountdown(LIKE_UNLOCK_SEC - elapsed)})` : '🤍 Like'}
           </button>
         )}
         <button
