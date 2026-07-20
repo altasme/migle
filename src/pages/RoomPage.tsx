@@ -11,8 +11,12 @@ import { FriendInviteList } from '../components/FriendInviteList'
 import { listFriends, type Friend } from '../lib/friends'
 import { getInvitedFriendIds, inviteFriendToRoom } from '../lib/hangouts'
 import { searchJamendoTracks, fetchJamendoByTag, JAMENDO_CATEGORIES, type JamendoTrack } from '../lib/jamendo'
-import { parseLrc, type LyricLine } from '../lib/lyrics'
-import { extractYouTubeVideoId, loadYouTubeIframeApi } from '../lib/youtube'
+import {
+  extractYouTubeVideoId,
+  loadYouTubeIframeApi,
+  searchYouTubeVideos,
+  type YouTubeSearchResult,
+} from '../lib/youtube'
 
 type GiftCatalogItem = {
   id: string
@@ -129,17 +133,14 @@ export function RoomPage() {
   const [jamendoError, setJamendoError] = useState<string | null>(null)
   const [jamendoCategory, setJamendoCategory] = useState<string | null>(null)
 
-  const [karaokeRaw, setKaraokeRaw] = useState<string | null>(null)
-  const [karaokeLines, setKaraokeLines] = useState<LyricLine[] | null>(null)
-  const [trackStartedAt, setTrackStartedAt] = useState<number | null>(null)
-  const [karaokeElapsed, setKaraokeElapsed] = useState(0)
-  const [karaokeModalOpen, setKaraokeModalOpen] = useState(false)
-  const [karaokeInput, setKaraokeInput] = useState('')
-
   const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null)
   const [youtubeModalOpen, setYoutubeModalOpen] = useState(false)
   const [youtubeUrlInput, setYoutubeUrlInput] = useState('')
   const [youtubeError, setYoutubeError] = useState<string | null>(null)
+  const [youtubeTab, setYoutubeTab] = useState<'search' | 'link'>('search')
+  const [youtubeQuery, setYoutubeQuery] = useState('')
+  const [youtubeResults, setYoutubeResults] = useState<YouTubeSearchResult[]>([])
+  const [youtubeSearching, setYoutubeSearching] = useState(false)
 
   const livekitRoomRef = useRef<Room | null>(null)
   const audioContainerRef = useRef<HTMLDivElement | null>(null)
@@ -151,7 +152,6 @@ export function RoomPage() {
   const musicTrackRef = useRef<MediaStreamTrack | null>(null)
   const musicObjectUrlRef = useRef<string | null>(null)
   const musicFileInputRef = useRef<HTMLInputElement | null>(null)
-  const pauseStartedAtRef = useRef<number | null>(null)
   // Any type: YouTube's IFrame Player API has no bundled TS types here.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ytPlayerRef = useRef<any>(null)
@@ -350,22 +350,11 @@ export function RoomPage() {
         }
         if (p.action === 'stop') {
           setNowPlaying(null)
-          setKaraokeRaw(null)
-          setKaraokeLines(null)
         } else if (p.action === 'play' && p.title) {
           setNowPlaying({ title: p.title, djUsername: p.djUsername ?? '?', paused: false })
-          setKaraokeRaw(null)
-          setKaraokeLines(null)
-          setTrackStartedAt(Date.now())
         } else if (p.action === 'pause_state') {
           setNowPlaying((cur) => (cur ? { ...cur, paused: !!p.paused } : cur))
-          applyKaraokePauseShift(!!p.paused)
         }
-      })
-      .on('broadcast', { event: 'karaoke' }, ({ payload }) => {
-        const p = payload as { lyricsRaw: string }
-        setKaraokeRaw(p.lyricsRaw)
-        setKaraokeLines(parseLrc(p.lyricsRaw))
       })
       .on('broadcast', { event: 'youtube' }, async ({ payload }) => {
         // The owner's own player is the source of truth, driven by their
@@ -436,16 +425,6 @@ export function RoomPage() {
   const mySeat = me?.seat_index ?? null
   const myMuted = me?.is_muted ?? false
 
-  // Drives which lyric line is highlighted - only needed in LRC (synced)
-  // mode. trackStartedAt is shifted forward on every pause/resume (see
-  // applyKaraokePauseShift) so a long pause doesn't make lyrics jump ahead.
-  useEffect(() => {
-    if (!karaokeLines || !trackStartedAt || musicPaused) return
-    const id = setInterval(() => {
-      setKaraokeElapsed((Date.now() - trackStartedAt) / 1000)
-    }, 500)
-    return () => clearInterval(id)
-  }, [karaokeLines, trackStartedAt, musicPaused])
   const isOwner = room !== null && room !== 'not-found' && room.owner_id === userId
   useEffect(() => {
     isOwnerRef.current = isOwner
@@ -648,9 +627,6 @@ export function RoomPage() {
       // update our own copy directly, same pattern sendGift() already
       // uses for its animation instead of waiting on self-receipt.
       setNowPlaying({ title, djUsername: me.username, paused: false })
-      setKaraokeRaw(null)
-      setKaraokeLines(null)
-      setTrackStartedAt(Date.now())
 
       channelRef.current?.send({
         type: 'broadcast',
@@ -712,19 +688,7 @@ export function RoomPage() {
     if (!isOwner) return
     stopMusicLocal()
     setNowPlaying(null)
-    setKaraokeRaw(null)
-    setKaraokeLines(null)
     channelRef.current?.send({ type: 'broadcast', event: 'music', payload: { action: 'stop' } })
-  }
-
-  function handleSetKaraokeLyrics() {
-    if (!isOwner || !karaokeInput.trim()) return
-    const raw = karaokeInput.trim()
-    setKaraokeRaw(raw)
-    setKaraokeLines(parseLrc(raw))
-    setTrackStartedAt((cur) => cur ?? Date.now())
-    setKaraokeModalOpen(false)
-    channelRef.current?.send({ type: 'broadcast', event: 'karaoke', payload: { lyricsRaw: raw } })
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -760,13 +724,8 @@ export function RoomPage() {
     }, 2000)
   }
 
-  async function handleLoadYoutube() {
+  async function loadYoutubeVideo(videoId: string) {
     if (!isOwner) return
-    const videoId = extractYouTubeVideoId(youtubeUrlInput)
-    if (!videoId) {
-      setYoutubeError('Paste a valid YouTube link.')
-      return
-    }
     setYoutubeError(null)
     setYoutubeModalOpen(false)
     setYoutubeVideoId(videoId)
@@ -774,6 +733,28 @@ export function RoomPage() {
     player.loadVideoById(videoId)
     channelRef.current?.send({ type: 'broadcast', event: 'youtube', payload: { action: 'load', videoId } })
     startYoutubeSyncHeartbeat()
+  }
+
+  async function handleLoadYoutubeLink() {
+    const videoId = extractYouTubeVideoId(youtubeUrlInput)
+    if (!videoId) {
+      setYoutubeError('Paste a valid YouTube link.')
+      return
+    }
+    await loadYoutubeVideo(videoId)
+  }
+
+  async function handleYoutubeSearch(e: React.FormEvent) {
+    e.preventDefault()
+    setYoutubeSearching(true)
+    setYoutubeError(null)
+    try {
+      setYoutubeResults(await searchYouTubeVideos(youtubeQuery))
+    } catch (err) {
+      setYoutubeError(err instanceof Error ? err.message : 'Search failed.')
+    } finally {
+      setYoutubeSearching(false)
+    }
   }
 
   function handleStopYoutube() {
@@ -787,20 +768,6 @@ export function RoomPage() {
     channelRef.current?.send({ type: 'broadcast', event: 'youtube', payload: { action: 'stop' } })
   }
 
-  // Shifts the karaoke reference clock forward by however long playback
-  // was paused, so lyric sync doesn't drift ahead during a long pause.
-  // Called on both the pauser's side and (via the broadcast handler)
-  // every listener's side, since each client tracks its own clock.
-  function applyKaraokePauseShift(paused: boolean) {
-    if (paused) {
-      pauseStartedAtRef.current = Date.now()
-    } else if (pauseStartedAtRef.current !== null) {
-      const pausedMs = Date.now() - pauseStartedAtRef.current
-      setTrackStartedAt((ts) => (ts !== null ? ts + pausedMs : ts))
-      pauseStartedAtRef.current = null
-    }
-  }
-
   function toggleMusicPause() {
     if (!isOwner) return
     const audioEl = musicAudioElRef.current
@@ -810,7 +777,6 @@ export function RoomPage() {
     else audioEl.play()
     setMusicPaused(nowPaused)
     setNowPlaying((cur) => (cur ? { ...cur, paused: nowPaused } : cur))
-    applyKaraokePauseShift(nowPaused)
     channelRef.current?.send({
       type: 'broadcast',
       event: 'music',
@@ -967,15 +933,6 @@ export function RoomPage() {
               >
                 ⏹ Stop
               </button>
-              <button
-                onClick={() => {
-                  setKaraokeInput(karaokeRaw ?? '')
-                  setKaraokeModalOpen(true)
-                }}
-                className="rounded-lg border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300"
-              >
-                📝 Lyrics
-              </button>
               <input
                 type="range"
                 min={0}
@@ -991,92 +948,98 @@ export function RoomPage() {
         </div>
       )}
 
-      {karaokeRaw &&
-        (() => {
-          const activeIndex = karaokeLines
-            ? karaokeLines.reduce(
-                (best, line, i) => (line.time <= karaokeElapsed ? i : best),
-                -1,
-              )
-            : -1
-          return (
-            <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3 text-center">
-              {karaokeLines ? (
-                <>
-                  <p className="text-lg font-semibold text-white">
-                    {activeIndex >= 0 ? karaokeLines[activeIndex].text : '♪ ♪ ♪'}
-                  </p>
-                  {activeIndex + 1 < karaokeLines.length && (
-                    <p className="mt-1 text-sm text-zinc-500">{karaokeLines[activeIndex + 1].text}</p>
-                  )}
-                </>
-              ) : (
-                <div className="max-h-32 overflow-y-auto whitespace-pre-wrap text-sm text-zinc-300">
-                  {karaokeRaw}
-                </div>
-              )}
-            </div>
-          )
-        })()}
-
-      {karaokeModalOpen && (
-        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60">
-          <div className="mx-4 w-full max-w-xs rounded-2xl bg-zinc-900 p-4">
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-medium text-white">Lyrics for this track</p>
-              <button onClick={() => setKaraokeModalOpen(false)} className="text-zinc-400 hover:text-white">
-                ✕
-              </button>
-            </div>
-            <p className="mb-2 text-xs text-zinc-500">
-              Paste plain lyrics, or LRC-timestamped lines (e.g. [00:12.50]Some line) to sync them to
-              playback.
-            </p>
-            <textarea
-              value={karaokeInput}
-              onChange={(e) => setKaraokeInput(e.target.value)}
-              rows={8}
-              placeholder="[00:00.00]First line…"
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
-            />
-            <button
-              onClick={handleSetKaraokeLyrics}
-              disabled={!karaokeInput.trim()}
-              className="mt-2 w-full rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-            >
-              Save and share
-            </button>
-          </div>
-        </div>
-      )}
-
       {youtubeModalOpen && (
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60">
-          <div className="mx-4 w-full max-w-xs rounded-2xl bg-zinc-900 p-4">
+          <div className="mx-4 flex max-h-[80vh] w-full max-w-xs flex-col rounded-2xl bg-zinc-900 p-4">
             <div className="mb-2 flex items-center justify-between">
               <p className="text-sm font-medium text-white">Karaoke video</p>
               <button onClick={() => setYoutubeModalOpen(false)} className="text-zinc-400 hover:text-white">
                 ✕
               </button>
             </div>
-            <p className="mb-2 text-xs text-zinc-500">
-              Paste a YouTube link, e.g. a karaoke/lyrics video. Everyone in the room sees it in sync.
-            </p>
-            <input
-              type="text"
-              value={youtubeUrlInput}
-              onChange={(e) => setYoutubeUrlInput(e.target.value)}
-              placeholder="https://youtube.com/watch?v=…"
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
-            />
-            {youtubeError && <p className="mt-1 text-xs text-red-400">{youtubeError}</p>}
-            <button
-              onClick={handleLoadYoutube}
-              disabled={!youtubeUrlInput.trim()}
-              className="mt-2 w-full rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-            >
-              Load for everyone
-            </button>
+
+            <div className="mb-3 flex gap-2">
+              <button
+                onClick={() => setYoutubeTab('search')}
+                className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium ${
+                  youtubeTab === 'search' ? 'bg-purple-600 text-white' : 'border border-zinc-700 text-zinc-300'
+                }`}
+              >
+                Search
+              </button>
+              <button
+                onClick={() => setYoutubeTab('link')}
+                className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium ${
+                  youtubeTab === 'link' ? 'bg-purple-600 text-white' : 'border border-zinc-700 text-zinc-300'
+                }`}
+              >
+                Paste link
+              </button>
+            </div>
+
+            {youtubeTab === 'link' ? (
+              <>
+                <p className="mb-2 text-xs text-zinc-500">
+                  Paste a YouTube link, e.g. a karaoke/lyrics video.
+                </p>
+                <input
+                  type="text"
+                  value={youtubeUrlInput}
+                  onChange={(e) => setYoutubeUrlInput(e.target.value)}
+                  placeholder="https://youtube.com/watch?v=…"
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
+                />
+                {youtubeError && <p className="mt-1 text-xs text-red-400">{youtubeError}</p>}
+                <button
+                  onClick={handleLoadYoutubeLink}
+                  disabled={!youtubeUrlInput.trim()}
+                  className="mt-2 w-full rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+                >
+                  Load for everyone
+                </button>
+              </>
+            ) : (
+              <div className="flex min-h-0 flex-1 flex-col gap-2">
+                <form onSubmit={handleYoutubeSearch} className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Search karaoke videos…"
+                    value={youtubeQuery}
+                    onChange={(e) => setYoutubeQuery(e.target.value)}
+                    className="flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={youtubeSearching}
+                    className="rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                  >
+                    {youtubeSearching ? '…' : 'Search'}
+                  </button>
+                </form>
+                {youtubeError && <p className="text-xs text-red-400">{youtubeError}</p>}
+                <div className="flex-1 overflow-y-auto">
+                  {youtubeResults.length === 0 ? (
+                    <p className="py-4 text-center text-xs text-zinc-500">Search for a karaoke video.</p>
+                  ) : (
+                    <div className="flex flex-col gap-1">
+                      {youtubeResults.map((r) => (
+                        <button
+                          key={r.videoId}
+                          onClick={() => loadYoutubeVideo(r.videoId)}
+                          className="flex items-center gap-2 rounded-lg p-1.5 text-left hover:bg-zinc-800"
+                        >
+                          <img src={r.thumbnailUrl} alt="" className="h-10 w-14 rounded object-cover" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-xs font-medium text-white">{r.title}</span>
+                            <span className="block truncate text-xs text-zinc-500">{r.channelTitle}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
