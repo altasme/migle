@@ -111,12 +111,20 @@ export function RoomPage() {
   const [invitingId, setInvitingId] = useState<string | null>(null)
   const [inviteError, setInviteError] = useState<string | null>(null)
 
+  const [nowPlaying, setNowPlaying] = useState<{ title: string; djUsername: string } | null>(null)
+  const [musicStatus, setMusicStatus] = useState<'idle' | 'starting' | 'playing' | 'error'>('idle')
+  const [musicError, setMusicError] = useState<string | null>(null)
+
   const livekitRoomRef = useRef<Room | null>(null)
   const audioContainerRef = useRef<HTMLDivElement | null>(null)
   const membersRef = useRef<Member[]>([])
   const chatEndRef = useRef<HTMLDivElement | null>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const hasJoinedRef = useRef(false)
+  const musicAudioElRef = useRef<HTMLAudioElement | null>(null)
+  const musicTrackRef = useRef<MediaStreamTrack | null>(null)
+  const musicObjectUrlRef = useRef<string | null>(null)
+  const musicFileInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     membersRef.current = members
@@ -296,6 +304,10 @@ export function RoomPage() {
         showGiftAnimation(payload as GiftAnimPayload)
         loadSupporters(roomId!)
       })
+      .on('broadcast', { event: 'music' }, ({ payload }) => {
+        const p = payload as { action: 'play' | 'stop'; title?: string; djUsername?: string }
+        setNowPlaying(p.action === 'play' && p.title ? { title: p.title, djUsername: p.djUsername ?? '?' } : null)
+      })
       .subscribe((status, err) => {
         console.log('[realtime] channel status:', status, err ?? '')
       })
@@ -308,6 +320,7 @@ export function RoomPage() {
       supabase.removeChannel(channel)
       livekitRoomRef.current?.disconnect()
       livekitRoomRef.current = null
+      stopMusicLocal()
     }
   }, [roomId, userId, slug])
 
@@ -444,11 +457,94 @@ export function RoomPage() {
   }
 
   async function leaveRoom() {
+    stopMusicLocal()
     if (roomId && userId) {
       await supabase.from('room_members').delete().eq('room_id', roomId).eq('user_id', userId)
     }
     livekitRoomRef.current?.disconnect()
     navigate('/')
+  }
+
+  // Cleanup only - no broadcast. Used on unmount/leave, where there's no
+  // point telling everyone else "stopped" since we're already gone and
+  // the track disappearing does that implicitly.
+  function stopMusicLocal() {
+    const track = musicTrackRef.current
+    if (track && livekitRoomRef.current) {
+      livekitRoomRef.current.localParticipant.unpublishTrack(track)
+    }
+    track?.stop()
+    musicTrackRef.current = null
+    if (musicAudioElRef.current) {
+      musicAudioElRef.current.pause()
+      musicAudioElRef.current.src = ''
+    }
+    if (musicObjectUrlRef.current) {
+      URL.revokeObjectURL(musicObjectUrlRef.current)
+      musicObjectUrlRef.current = null
+    }
+    setMusicStatus('idle')
+  }
+
+  // Web apps can't read a phone's actual song library - there's no
+  // browser API for that. This is the closest real equivalent: pick a
+  // file each time via the native picker, then capture its audio output
+  // and publish it as an extra LiveKit track. Everyone else's existing
+  // TrackSubscribed handler picks it up automatically, same as any other
+  // audio track - no changes needed on the listening side.
+  async function handleMusicFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !roomId || !me) return
+
+    const audioEl = musicAudioElRef.current
+    const lkRoom = livekitRoomRef.current
+    if (!audioEl || !lkRoom) return
+
+    type CaptureCapable = HTMLAudioElement & {
+      captureStream?: () => MediaStream
+      mozCaptureStream?: () => MediaStream
+    }
+    const capable = audioEl as CaptureCapable
+    const captureFn = capable.captureStream ?? capable.mozCaptureStream
+    if (!captureFn) {
+      setMusicStatus('error')
+      setMusicError("Music streaming isn't supported on this browser.")
+      return
+    }
+
+    setMusicStatus('starting')
+    setMusicError(null)
+    try {
+      stopMusicLocal()
+      const url = URL.createObjectURL(file)
+      musicObjectUrlRef.current = url
+      audioEl.src = url
+      audioEl.loop = true
+      await audioEl.play()
+
+      const stream = captureFn.call(audioEl)
+      const [track] = stream.getAudioTracks()
+      if (!track) throw new Error('No audio track captured')
+      musicTrackRef.current = track
+
+      await lkRoom.localParticipant.publishTrack(track, { name: 'music' })
+      setMusicStatus('playing')
+
+      channelRef.current?.send({
+        type: 'broadcast',
+        event: 'music',
+        payload: { action: 'play', title: file.name, djUsername: me.username },
+      })
+    } catch (err) {
+      setMusicStatus('error')
+      setMusicError(err instanceof Error ? err.message : 'Failed to play music')
+    }
+  }
+
+  function handleStopMusic() {
+    stopMusicLocal()
+    channelRef.current?.send({ type: 'broadcast', event: 'music', payload: { action: 'stop' } })
   }
 
   async function openInvitePanel() {
@@ -503,6 +599,14 @@ export function RoomPage() {
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col gap-4 p-4">
       <div ref={audioContainerRef} className="hidden" />
+      <audio ref={musicAudioElRef} className="hidden" />
+      <input
+        ref={musicFileInputRef}
+        type="file"
+        accept="audio/*"
+        className="hidden"
+        onChange={handleMusicFileChange}
+      />
 
       <div className="flex items-center justify-between">
         <div>
@@ -518,6 +622,22 @@ export function RoomPage() {
               👥 Invite
             </button>
           )}
+          {isOwner &&
+            (musicStatus === 'playing' || musicStatus === 'starting' ? (
+              <button
+                onClick={handleStopMusic}
+                className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300"
+              >
+                ⏹ Stop music
+              </button>
+            ) : (
+              <button
+                onClick={() => musicFileInputRef.current?.click()}
+                className="rounded-lg border border-purple-600 px-3 py-1.5 text-sm font-medium text-purple-400"
+              >
+                🎵 Play music
+              </button>
+            ))}
           <button
             onClick={() => setGiftModalOpen(true)}
             className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-medium text-white"
@@ -537,6 +657,18 @@ export function RoomPage() {
         Voice: {voiceStatus}
         {voiceError ? `: ${voiceError}` : ''}
       </p>
+
+      {musicError && <p className="text-xs text-red-400">{musicError}</p>}
+
+      {nowPlaying && (
+        <div className="flex items-center gap-2 rounded-lg border border-purple-800/50 bg-purple-950/30 px-3 py-2 text-sm">
+          <span>🎵</span>
+          <span className="text-zinc-200">
+            <span className="font-medium text-white">{nowPlaying.title}</span> · played by{' '}
+            {nowPlaying.djUsername}
+          </span>
+        </div>
+      )}
 
       <div className="grid grid-cols-4 gap-3">
         {Array.from({ length: room.max_seats }, (_, i) => {
