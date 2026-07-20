@@ -62,6 +62,17 @@ export function AdminReports() {
     setBusy(null)
   }
 
+  async function ban(id: number, userId: string) {
+    if (!confirm('Ban this user? This is immediate and platform-wide.')) return
+    setBusy(id)
+    const { error } = await supabase.rpc('ban_user', { p_user: userId })
+    if (!error) {
+      await supabase.from('reports').update({ status: 'resolved' }).eq('id', id)
+    }
+    await load()
+    setBusy(null)
+  }
+
   if (profile && !profile.is_admin) {
     return (
       <div className="p-6 text-center">
@@ -106,13 +117,22 @@ export function AdminReports() {
                 {r.status}
               </p>
               {r.status !== 'resolved' && (
-                <button
-                  onClick={() => resolve(r.id)}
-                  disabled={busy === r.id}
-                  className="mt-2 rounded-lg border border-zinc-700 px-3 py-1 text-xs text-zinc-300 disabled:opacity-50"
-                >
-                  {busy === r.id ? 'Resolving…' : 'Mark resolved'}
-                </button>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    onClick={() => resolve(r.id)}
+                    disabled={busy === r.id}
+                    className="rounded-lg border border-zinc-700 px-3 py-1 text-xs text-zinc-300 disabled:opacity-50"
+                  >
+                    {busy === r.id ? 'Working…' : 'Mark resolved'}
+                  </button>
+                  <button
+                    onClick={() => ban(r.id, r.reported_id)}
+                    disabled={busy === r.id}
+                    className="rounded-lg bg-red-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+                  >
+                    {busy === r.id ? 'Working…' : `Ban ${r.reportedUsername}`}
+                  </button>
+                </div>
               )}
             </div>
           ))}

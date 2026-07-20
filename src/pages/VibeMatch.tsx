@@ -131,6 +131,8 @@ export function VibeMatch() {
       if (err instanceof Error && err.message.includes('voice_limit_reached')) {
         setVoiceMinglesLeft(0)
         setError("You've used today's 5 free Voice Mingles. Try text, or come back tomorrow.")
+      } else if (err instanceof Error && err.message.includes('account_banned')) {
+        setError('Your account has been suspended.')
       } else {
         setError(err instanceof Error ? err.message : 'Something went wrong.')
       }
