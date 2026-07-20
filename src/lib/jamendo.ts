@@ -13,11 +13,6 @@ export type JamendoTrack = {
   duration: number
 }
 
-export type JamendoPlaylist = {
-  id: string
-  name: string
-}
-
 export const JAMENDO_CATEGORIES = [
   { label: 'Cafe', tag: 'lounge' },
   { label: 'Jazz', tag: 'jazz' },
@@ -64,37 +59,4 @@ export async function fetchJamendoByTag(tag: string, count = 5): Promise<Jamendo
   const all = (data.results ?? []) as JamendoTrack[]
   const shuffled = [...all].sort(() => Math.random() - 0.5)
   return shuffled.slice(0, count)
-}
-
-export async function searchJamendoPlaylists(query: string): Promise<JamendoPlaylist[]> {
-  if (!JAMENDO_CLIENT_ID) throw new Error('Cloud music is not configured.')
-
-  const params = new URLSearchParams({
-    client_id: JAMENDO_CLIENT_ID,
-    format: 'json',
-    limit: '20',
-    ...(query.trim() ? { namesearch: query.trim() } : { order: 'creationdate_desc' }),
-  })
-
-  const res = await fetch(`https://api.jamendo.com/v3.0/playlists/?${params.toString()}`)
-  if (!res.ok) throw new Error('Search failed. Try again.')
-  const data = await res.json()
-  return (data.results ?? []) as JamendoPlaylist[]
-}
-
-export async function getJamendoPlaylistTracks(playlistId: string): Promise<JamendoTrack[]> {
-  if (!JAMENDO_CLIENT_ID) throw new Error('Cloud music is not configured.')
-
-  const params = new URLSearchParams({
-    client_id: JAMENDO_CLIENT_ID,
-    format: 'json',
-    id: playlistId,
-    audioformat: 'mp32',
-  })
-
-  const res = await fetch(`https://api.jamendo.com/v3.0/playlists/tracks/?${params.toString()}`)
-  if (!res.ok) throw new Error('Failed to load playlist.')
-  const data = await res.json()
-  const first = (data.results ?? [])[0]
-  return (first?.tracks ?? []) as JamendoTrack[]
 }
