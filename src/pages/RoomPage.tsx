@@ -10,7 +10,15 @@ import { SafetyMenu } from '../components/SafetyMenu'
 import { FriendInviteList } from '../components/FriendInviteList'
 import { listFriends, type Friend } from '../lib/friends'
 import { getInvitedFriendIds, inviteFriendToRoom } from '../lib/hangouts'
-import { searchJamendoTracks, type JamendoTrack } from '../lib/jamendo'
+import {
+  searchJamendoTracks,
+  fetchJamendoByTag,
+  searchJamendoPlaylists,
+  getJamendoPlaylistTracks,
+  JAMENDO_CATEGORIES,
+  type JamendoTrack,
+  type JamendoPlaylist,
+} from '../lib/jamendo'
 
 type GiftCatalogItem = {
   id: string
@@ -125,6 +133,11 @@ export function RoomPage() {
   const [jamendoResults, setJamendoResults] = useState<JamendoTrack[]>([])
   const [jamendoSearching, setJamendoSearching] = useState(false)
   const [jamendoError, setJamendoError] = useState<string | null>(null)
+  const [jamendoMode, setJamendoMode] = useState<'tracks' | 'playlists'>('tracks')
+  const [jamendoCategory, setJamendoCategory] = useState<string | null>(null)
+  const [playlistQuery, setPlaylistQuery] = useState('')
+  const [playlistResults, setPlaylistResults] = useState<JamendoPlaylist[]>([])
+  const [activePlaylist, setActivePlaylist] = useState<JamendoPlaylist | null>(null)
 
   const livekitRoomRef = useRef<Room | null>(null)
   const audioContainerRef = useRef<HTMLDivElement | null>(null)
@@ -597,12 +610,53 @@ export function RoomPage() {
 
   async function handleJamendoSearch(e: React.FormEvent) {
     e.preventDefault()
+    setJamendoCategory(null)
     setJamendoSearching(true)
     setJamendoError(null)
     try {
       setJamendoResults(await searchJamendoTracks(jamendoQuery))
     } catch (err) {
       setJamendoError(err instanceof Error ? err.message : 'Search failed.')
+    } finally {
+      setJamendoSearching(false)
+    }
+  }
+
+  async function handleJamendoCategory(tag: string, label: string) {
+    setJamendoQuery('')
+    setJamendoCategory(label)
+    setJamendoSearching(true)
+    setJamendoError(null)
+    try {
+      setJamendoResults(await fetchJamendoByTag(tag))
+    } catch (err) {
+      setJamendoError(err instanceof Error ? err.message : 'Failed to load category.')
+    } finally {
+      setJamendoSearching(false)
+    }
+  }
+
+  async function handlePlaylistSearch(e: React.FormEvent) {
+    e.preventDefault()
+    setJamendoSearching(true)
+    setJamendoError(null)
+    try {
+      setPlaylistResults(await searchJamendoPlaylists(playlistQuery))
+    } catch (err) {
+      setJamendoError(err instanceof Error ? err.message : 'Search failed.')
+    } finally {
+      setJamendoSearching(false)
+    }
+  }
+
+  async function openPlaylist(playlist: JamendoPlaylist) {
+    setActivePlaylist(playlist)
+    setJamendoSearching(true)
+    setJamendoError(null)
+    try {
+      setJamendoResults(await getJamendoPlaylistTracks(playlist.id))
+    } catch (err) {
+      setJamendoError(err instanceof Error ? err.message : 'Failed to load playlist.')
     } finally {
       setJamendoSearching(false)
     }
@@ -980,42 +1034,157 @@ export function RoomPage() {
               </div>
             ) : (
               <div className="flex min-h-0 flex-1 flex-col gap-2">
-                <form onSubmit={handleJamendoSearch} className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Search free/CC tracks…"
-                    value={jamendoQuery}
-                    onChange={(e) => setJamendoQuery(e.target.value)}
-                    className="flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
-                  />
+                <div className="flex gap-2 text-xs">
                   <button
-                    type="submit"
-                    disabled={jamendoSearching}
-                    className="rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                    onClick={() => {
+                      setJamendoMode('tracks')
+                      setActivePlaylist(null)
+                    }}
+                    className={`flex-1 rounded-lg px-2 py-1 ${
+                      jamendoMode === 'tracks' ? 'bg-zinc-700 text-white' : 'text-zinc-400'
+                    }`}
                   >
-                    {jamendoSearching ? '…' : 'Search'}
+                    🔍 Tracks
                   </button>
-                </form>
-                {jamendoError && <p className="text-xs text-red-400">{jamendoError}</p>}
-                <div className="flex-1 overflow-y-auto">
-                  {jamendoResults.length === 0 ? (
-                    <p className="py-4 text-center text-xs text-zinc-500">
-                      Search for a track to get started.
-                    </p>
-                  ) : (
-                    <div className="flex flex-col gap-1">
-                      {jamendoResults.map((t) => (
+                  <button
+                    onClick={() => {
+                      setJamendoMode('playlists')
+                      setActivePlaylist(null)
+                      if (playlistResults.length === 0) searchJamendoPlaylists('').then(setPlaylistResults)
+                    }}
+                    className={`flex-1 rounded-lg px-2 py-1 ${
+                      jamendoMode === 'playlists' ? 'bg-zinc-700 text-white' : 'text-zinc-400'
+                    }`}
+                  >
+                    📃 Playlists
+                  </button>
+                </div>
+
+                {jamendoMode === 'tracks' && (
+                  <>
+                    <div className="flex flex-wrap gap-1.5">
+                      {JAMENDO_CATEGORIES.map((c) => (
                         <button
-                          key={t.id}
-                          onClick={() => handleJamendoPlay(t)}
-                          className="rounded-lg px-2 py-1.5 text-left text-xs text-zinc-200 hover:bg-zinc-800"
+                          key={c.tag}
+                          onClick={() => handleJamendoCategory(c.tag, c.label)}
+                          className={`rounded-full border px-2.5 py-1 text-xs ${
+                            jamendoCategory === c.label
+                              ? 'border-purple-500 bg-purple-600 text-white'
+                              : 'border-zinc-700 text-zinc-300'
+                          }`}
                         >
-                          <span className="font-medium text-white">{t.name}</span> - {t.artist_name}
+                          {c.label}
                         </button>
                       ))}
                     </div>
-                  )}
-                </div>
+                    <form onSubmit={handleJamendoSearch} className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Search free/CC tracks…"
+                        value={jamendoQuery}
+                        onChange={(e) => setJamendoQuery(e.target.value)}
+                        className="flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
+                      />
+                      <button
+                        type="submit"
+                        disabled={jamendoSearching}
+                        className="rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                      >
+                        {jamendoSearching ? '…' : 'Search'}
+                      </button>
+                    </form>
+                    {jamendoError && <p className="text-xs text-red-400">{jamendoError}</p>}
+                    <div className="flex-1 overflow-y-auto">
+                      {jamendoResults.length === 0 ? (
+                        <p className="py-4 text-center text-xs text-zinc-500">
+                          Pick a category above, or search for a track.
+                        </p>
+                      ) : (
+                        <div className="flex flex-col gap-1">
+                          {jamendoResults.map((t) => (
+                            <button
+                              key={t.id}
+                              onClick={() => handleJamendoPlay(t)}
+                              className="rounded-lg px-2 py-1.5 text-left text-xs text-zinc-200 hover:bg-zinc-800"
+                            >
+                              <span className="font-medium text-white">{t.name}</span> - {t.artist_name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {jamendoMode === 'playlists' &&
+                  (!activePlaylist ? (
+                    <>
+                      <form onSubmit={handlePlaylistSearch} className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Search playlists…"
+                          value={playlistQuery}
+                          onChange={(e) => setPlaylistQuery(e.target.value)}
+                          className="flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
+                        />
+                        <button
+                          type="submit"
+                          disabled={jamendoSearching}
+                          className="rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                        >
+                          {jamendoSearching ? '…' : 'Search'}
+                        </button>
+                      </form>
+                      {jamendoError && <p className="text-xs text-red-400">{jamendoError}</p>}
+                      <div className="flex-1 overflow-y-auto">
+                        {playlistResults.length === 0 ? (
+                          <p className="py-4 text-center text-xs text-zinc-500">No playlists found.</p>
+                        ) : (
+                          <div className="flex flex-col gap-1">
+                            {playlistResults.map((p) => (
+                              <button
+                                key={p.id}
+                                onClick={() => openPlaylist(p)}
+                                className="rounded-lg px-2 py-1.5 text-left text-xs text-zinc-200 hover:bg-zinc-800"
+                              >
+                                {p.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => setActivePlaylist(null)}
+                        className="self-start text-xs text-purple-400 hover:underline"
+                      >
+                        ← Back to playlists
+                      </button>
+                      <p className="text-xs text-zinc-500">Tracks in {activePlaylist.name}</p>
+                      {jamendoError && <p className="text-xs text-red-400">{jamendoError}</p>}
+                      <div className="flex-1 overflow-y-auto">
+                        {jamendoResults.length === 0 ? (
+                          <p className="py-4 text-center text-xs text-zinc-500">
+                            {jamendoSearching ? 'Loading…' : 'No tracks in this playlist.'}
+                          </p>
+                        ) : (
+                          <div className="flex flex-col gap-1">
+                            {jamendoResults.map((t) => (
+                              <button
+                                key={t.id}
+                                onClick={() => handleJamendoPlay(t)}
+                                className="rounded-lg px-2 py-1.5 text-left text-xs text-zinc-200 hover:bg-zinc-800"
+                              >
+                                <span className="font-medium text-white">{t.name}</span> - {t.artist_name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ))}
               </div>
             )}
           </div>
