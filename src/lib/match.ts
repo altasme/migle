@@ -10,6 +10,8 @@ export type MatchSession = {
   ended_at: string | null
   liked_a: boolean
   liked_b: boolean
+  ready_a: boolean
+  ready_b: boolean
 }
 
 export type MatchMessage = {
@@ -45,12 +47,18 @@ export async function getMyVoiceMinglesRemaining(): Promise<number> {
   return data as number
 }
 
+export async function markMatchReady(sessionId: string): Promise<MatchSession> {
+  const { data, error } = await supabase.rpc('mark_match_ready', { p_session_id: sessionId })
+  if (error) throw error
+  return data
+}
+
 export async function getSessionState(
   sessionId: string,
-): Promise<Pick<MatchSession, 'ended_at' | 'liked_a' | 'liked_b'> | null> {
+): Promise<Pick<MatchSession, 'ended_at' | 'liked_a' | 'liked_b' | 'ready_a' | 'ready_b'> | null> {
   const { data } = await supabase
     .from('match_sessions')
-    .select('ended_at, liked_a, liked_b')
+    .select('ended_at, liked_a, liked_b, ready_a, ready_b')
     .eq('id', sessionId)
     .maybeSingle()
   return data

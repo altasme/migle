@@ -7,6 +7,9 @@ import { fetchLiveKitToken, kickFromLiveKit, LIVEKIT_URL } from '../lib/livekit'
 import { useAuthStore } from '../store/authStore'
 import { AvatarImage } from '../components/AvatarImage'
 import { SafetyMenu } from '../components/SafetyMenu'
+import { FriendInviteList } from '../components/FriendInviteList'
+import { listFriends, type Friend } from '../lib/friends'
+import { getInvitedFriendIds, inviteFriendToRoom } from '../lib/hangouts'
 
 type GiftCatalogItem = {
   id: string
@@ -102,6 +105,11 @@ export function RoomPage() {
   const [activeGiftAnim, setActiveGiftAnim] = useState<GiftAnimPayload | null>(null)
   const [ejected, setEjected] = useState(false)
   const [joinDenied, setJoinDenied] = useState(false)
+  const [inviteModalOpen, setInviteModalOpen] = useState(false)
+  const [friends, setFriends] = useState<Friend[]>([])
+  const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set())
+  const [invitingId, setInvitingId] = useState<string | null>(null)
+  const [inviteError, setInviteError] = useState<string | null>(null)
 
   const livekitRoomRef = useRef<Room | null>(null)
   const audioContainerRef = useRef<HTMLDivElement | null>(null)
@@ -443,6 +451,29 @@ export function RoomPage() {
     navigate('/')
   }
 
+  async function openInvitePanel() {
+    if (!roomId || !userId) return
+    setInviteModalOpen(true)
+    setInviteError(null)
+    const [f, invited] = await Promise.all([listFriends(userId), getInvitedFriendIds(roomId)])
+    setFriends(f)
+    setInvitedIds(invited)
+  }
+
+  async function handleInviteFriend(friendId: string) {
+    if (!roomId) return
+    setInvitingId(friendId)
+    setInviteError(null)
+    try {
+      await inviteFriendToRoom(roomId, friendId)
+      setInvitedIds((prev) => new Set(prev).add(friendId))
+    } catch (err) {
+      setInviteError(err instanceof Error ? err.message : 'Something went wrong.')
+    } finally {
+      setInvitingId(null)
+    }
+  }
+
   if (room === null) {
     return <p className="p-6 text-center text-zinc-400">Loading…</p>
   }
@@ -479,6 +510,14 @@ export function RoomPage() {
           <p className="text-xs text-zinc-500">/r/{room.slug}</p>
         </div>
         <div className="flex gap-2">
+          {isOwner && (
+            <button
+              onClick={openInvitePanel}
+              className="rounded-lg border border-purple-600 px-3 py-1.5 text-sm font-medium text-purple-400"
+            >
+              👥 Invite
+            </button>
+          )}
           <button
             onClick={() => setGiftModalOpen(true)}
             className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-medium text-white"
@@ -616,6 +655,29 @@ export function RoomPage() {
                 <span className="text-yellow-400">🪙 {s.total}</span>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {inviteModalOpen && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60">
+          <div className="mx-4 w-full max-w-xs rounded-2xl bg-zinc-900 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-medium text-white">Invite friends</p>
+              <button
+                onClick={() => setInviteModalOpen(false)}
+                className="text-zinc-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            {inviteError && <p className="mb-2 text-xs text-red-400">{inviteError}</p>}
+            <FriendInviteList
+              friends={friends}
+              invitedIds={invitedIds}
+              invitingId={invitingId}
+              onInvite={handleInviteFriend}
+            />
           </div>
         </div>
       )}
