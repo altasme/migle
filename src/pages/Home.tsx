@@ -3,9 +3,12 @@ import { useAuthStore } from '../store/authStore'
 import { useHomeSocial } from '../hooks/useHomeSocial'
 import { AvatarImage } from '../components/AvatarImage'
 import { FriendsIcon } from '../components/icons'
+import { HangoutPanel } from '../components/HangoutPanel'
+import { HangoutInvites } from '../components/HangoutInvites'
 
-// Rooms/browse were pulled from here per the regional-match relaunch spec
-// — the launch product is 1:1 random match, not open rooms.
+// Open room browsing was pulled from here per the regional-match relaunch
+// spec — the launch product is 1:1 random match. Hangouts are back, but
+// invite-only and friends-only, never publicly discoverable.
 export function Home() {
   const profile = useAuthStore((s) => s.profile)
   const { onlineFriends } = useHomeSocial()
@@ -28,6 +31,9 @@ export function Home() {
         </span>
         <span className="text-xs text-zinc-300">Friends</span>
       </Link>
+
+      <HangoutInvites />
+      <HangoutPanel />
 
       {onlineFriends.length > 0 && (
         <section>
