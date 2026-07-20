@@ -878,7 +878,7 @@ export function RoomPage() {
               onClick={() => setYoutubeModalOpen(true)}
               className="rounded-lg border border-purple-600 px-3 py-1.5 text-sm font-medium text-purple-400"
             >
-              📺 Karaoke video
+              📺 Karaoke Mode
             </button>
           )}
           <button
@@ -952,7 +952,7 @@ export function RoomPage() {
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60">
           <div className="mx-4 flex max-h-[80vh] w-full max-w-xs flex-col rounded-2xl bg-zinc-900 p-4">
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-medium text-white">Karaoke video</p>
+              <p className="text-sm font-medium text-white">Karaoke Mode</p>
               <button onClick={() => setYoutubeModalOpen(false)} className="text-zinc-400 hover:text-white">
                 ✕
               </button>
@@ -1003,7 +1003,7 @@ export function RoomPage() {
                 <form onSubmit={handleYoutubeSearch} className="flex gap-2">
                   <input
                     type="text"
-                    placeholder="Search karaoke videos…"
+                    placeholder="Search your favorite song"
                     value={youtubeQuery}
                     onChange={(e) => setYoutubeQuery(e.target.value)}
                     className="flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
@@ -1019,7 +1019,7 @@ export function RoomPage() {
                 {youtubeError && <p className="text-xs text-red-400">{youtubeError}</p>}
                 <div className="flex-1 overflow-y-auto">
                   {youtubeResults.length === 0 ? (
-                    <p className="py-4 text-center text-xs text-zinc-500">Search for a karaoke video.</p>
+                    <p className="py-4 text-center text-xs text-zinc-500">Search for your favorite song.</p>
                   ) : (
                     <div className="flex flex-col gap-1">
                       {youtubeResults.map((r) => (
@@ -1051,7 +1051,7 @@ export function RoomPage() {
             onClick={handleStopYoutube}
             className="self-start rounded-lg border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300"
           >
-            ⏹ Stop karaoke video
+            ⏹ Stop Karaoke Mode
           </button>
         )}
       </div>
