@@ -512,6 +512,10 @@ export function RoomPage() {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file || !roomId || !me) return
+    // The button that opens this picker only renders for isOwner, but
+    // check again here too in case the hidden input ever gets triggered
+    // some other way.
+    if (!isOwner) return
 
     // Publishing anything requires a mic seat - canPublish is granted
     // server-side based on seat status (Rule 4), there's no separate
@@ -575,12 +579,14 @@ export function RoomPage() {
   }
 
   function handleStopMusic() {
+    if (!isOwner) return
     stopMusicLocal()
     setNowPlaying(null)
     channelRef.current?.send({ type: 'broadcast', event: 'music', payload: { action: 'stop' } })
   }
 
   function toggleMusicPause() {
+    if (!isOwner) return
     const audioEl = musicAudioElRef.current
     if (!audioEl) return
     const nowPaused = !audioEl.paused
@@ -596,6 +602,7 @@ export function RoomPage() {
   }
 
   function handleMusicVolumeChange(v: number) {
+    if (!isOwner) return
     setMusicVolume(v)
     if (musicAudioElRef.current) musicAudioElRef.current.volume = v
   }
