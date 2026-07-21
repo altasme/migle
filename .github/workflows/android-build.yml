@@ -1,0 +1,63 @@
+name: Android debug build
+
+# Produces a sideloadable debug APK as a downloadable artifact. GitHub's
+# runners have the Android SDK and full internet access, which the
+# development sandbox that scaffolded this project does not - this is the
+# actual build step.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'src/**'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'capacitor.config.ts'
+      - 'vite.config.ts'
+      - '.github/workflows/android-build.yml'
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install web dependencies
+        run: npm ci
+
+      # Vite bakes these into the JS bundle at build time - add them as repo
+      # secrets (Settings -> Secrets and variables -> Actions) with the same
+      # values as the local .env file, or the app will build but fail to
+      # reach Supabase/LiveKit at runtime.
+      - name: Build web app
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_LIVEKIT_URL: ${{ secrets.VITE_LIVEKIT_URL }}
+          VITE_JAMENDO_CLIENT_ID: ${{ secrets.VITE_JAMENDO_CLIENT_ID }}
+          VITE_YOUTUBE_API_KEY: ${{ secrets.VITE_YOUTUBE_API_KEY }}
+
+      - name: Sync web build into the native Android project
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: mingleverse-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk

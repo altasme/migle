@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Mingleverse</string>
+    <string name="title_activity_main">Mingleverse</string>
+    <string name="package_name">com.mingleverse.app</string>
+    <string name="custom_url_scheme">com.mingleverse.app</string>
+</resources>
