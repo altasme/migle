@@ -143,7 +143,12 @@ export function RoomPage() {
   const [jamendoCategory, setJamendoCategory] = useState<string | null>(null)
 
   const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null)
+  // Mode of the currently loaded/playing video (shown as a label, synced to
+  // everyone). youtubeModalMode is the mode picked inside the modal before a
+  // video is loaded - both use the same 'karaoke' | 'together' values.
+  const [watchPartyMode, setWatchPartyMode] = useState<'karaoke' | 'together' | null>(null)
   const [youtubeModalOpen, setYoutubeModalOpen] = useState(false)
+  const [youtubeModalMode, setYoutubeModalMode] = useState<'karaoke' | 'together' | null>(null)
   const [youtubeUrlInput, setYoutubeUrlInput] = useState('')
   const [youtubeError, setYoutubeError] = useState<string | null>(null)
   const [youtubeTab, setYoutubeTab] = useState<'search' | 'link'>('search')
@@ -370,15 +375,23 @@ export function RoomPage() {
         // real interactions with YouTube's native controls - it doesn't
         // react to its own broadcasts.
         if (isOwnerRef.current) return
-        const p = payload as { action: 'load' | 'sync' | 'stop'; videoId?: string; time?: number; state?: number }
+        const p = payload as {
+          action: 'load' | 'sync' | 'stop'
+          videoId?: string
+          time?: number
+          state?: number
+          mode?: 'karaoke' | 'together'
+        }
 
         if (p.action === 'stop') {
           setYoutubeVideoId(null)
+          setWatchPartyMode(null)
           ytPlayerRef.current?.stopVideo?.()
           return
         }
         if (p.action === 'load' && p.videoId) {
           setYoutubeVideoId(p.videoId)
+          setWatchPartyMode(p.mode ?? null)
           const player = await ensureYtPlayer(false)
           player.loadVideoById(p.videoId)
           return
@@ -733,14 +746,15 @@ export function RoomPage() {
     }, 2000)
   }
 
-  async function loadYoutubeVideo(videoId: string) {
+  async function loadYoutubeVideo(videoId: string, mode: 'karaoke' | 'together') {
     if (!isOwner) return
     setYoutubeError(null)
     setYoutubeModalOpen(false)
     setYoutubeVideoId(videoId)
+    setWatchPartyMode(mode)
     const player = await ensureYtPlayer(true)
     player.loadVideoById(videoId)
-    channelRef.current?.send({ type: 'broadcast', event: 'youtube', payload: { action: 'load', videoId } })
+    channelRef.current?.send({ type: 'broadcast', event: 'youtube', payload: { action: 'load', videoId, mode } })
     startYoutubeSyncHeartbeat()
   }
 
@@ -750,7 +764,7 @@ export function RoomPage() {
       setYoutubeError('Paste a valid YouTube link.')
       return
     }
-    await loadYoutubeVideo(videoId)
+    await loadYoutubeVideo(videoId, youtubeModalMode ?? 'together')
   }
 
   async function handleYoutubeSearch(e: React.FormEvent) {
@@ -773,6 +787,7 @@ export function RoomPage() {
       ytSyncIntervalRef.current = null
     }
     setYoutubeVideoId(null)
+    setWatchPartyMode(null)
     ytPlayerRef.current?.stopVideo?.()
     channelRef.current?.send({ type: 'broadcast', event: 'youtube', payload: { action: 'stop' } })
   }
@@ -922,10 +937,13 @@ export function RoomPage() {
           )}
           {isOwner && !youtubeVideoId && (
             <button
-              onClick={() => setYoutubeModalOpen(true)}
+              onClick={() => {
+                setYoutubeModalMode(null)
+                setYoutubeModalOpen(true)
+              }}
               className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm font-medium text-white"
             >
-              📺 Karaoke Mode
+              🎉 Watch Party
             </button>
           )}
           <button
@@ -999,106 +1017,153 @@ export function RoomPage() {
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60">
           <div className="mx-4 flex max-h-[80vh] w-full max-w-xs flex-col rounded-2xl bg-zinc-900 p-4">
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-medium text-white">Karaoke Mode</p>
+              <div className="flex items-center gap-1">
+                {youtubeModalMode && (
+                  <button
+                    onClick={() => setYoutubeModalMode(null)}
+                    className="mr-1 text-zinc-400 hover:text-white"
+                    aria-label="Back"
+                  >
+                    ‹
+                  </button>
+                )}
+                <p className="text-sm font-medium text-white">
+                  {youtubeModalMode === 'karaoke'
+                    ? 'Karaoke Mode'
+                    : youtubeModalMode === 'together'
+                      ? 'Watch Together'
+                      : '🎉 Watch Party'}
+                </p>
+              </div>
               <button onClick={() => setYoutubeModalOpen(false)} className="text-zinc-400 hover:text-white">
                 ✕
               </button>
             </div>
 
-            <div className="mb-3 flex gap-2">
-              <button
-                onClick={() => setYoutubeTab('search')}
-                className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium ${
-                  youtubeTab === 'search' ? 'bg-purple-600 text-white' : 'border border-zinc-700 text-zinc-300'
-                }`}
-              >
-                Search
-              </button>
-              <button
-                onClick={() => setYoutubeTab('link')}
-                className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium ${
-                  youtubeTab === 'link' ? 'bg-purple-600 text-white' : 'border border-zinc-700 text-zinc-300'
-                }`}
-              >
-                Paste link
-              </button>
-            </div>
-
-            {youtubeTab === 'link' ? (
-              <>
-                <p className="mb-2 text-xs text-zinc-500">
-                  Paste a YouTube link, e.g. a karaoke/lyrics video.
-                </p>
-                <input
-                  type="text"
-                  value={youtubeUrlInput}
-                  onChange={(e) => setYoutubeUrlInput(e.target.value)}
-                  placeholder="https://youtube.com/watch?v=…"
-                  className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
-                />
-                {youtubeError && <p className="mt-1 text-xs text-red-400">{youtubeError}</p>}
+            {youtubeModalMode === null ? (
+              <div className="flex flex-col gap-2">
                 <button
-                  onClick={handleLoadYoutubeLink}
-                  disabled={!youtubeUrlInput.trim()}
-                  className="mt-2 w-full rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  onClick={() => setYoutubeModalMode('karaoke')}
+                  className="rounded-lg border border-zinc-700 p-3 text-left hover:bg-zinc-800"
                 >
-                  Load for everyone
+                  <p className="text-sm font-medium text-white">🎤 Karaoke Mode</p>
+                  <p className="text-xs text-zinc-500">Sing along to a karaoke video together.</p>
                 </button>
-              </>
-            ) : (
-              <div className="flex min-h-0 flex-1 flex-col gap-2">
-                <form onSubmit={handleYoutubeSearch} className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Search your favorite song"
-                    value={youtubeQuery}
-                    onChange={(e) => setYoutubeQuery(e.target.value)}
-                    className="flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
-                  />
-                  <button
-                    type="submit"
-                    disabled={youtubeSearching}
-                    className="rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
-                  >
-                    {youtubeSearching ? '…' : 'Search'}
-                  </button>
-                </form>
-                {youtubeError && <p className="text-xs text-red-400">{youtubeError}</p>}
-                <div className="flex-1 overflow-y-auto">
-                  {youtubeResults.length === 0 ? (
-                    <p className="py-4 text-center text-xs text-zinc-500">Search for your favorite song.</p>
-                  ) : (
-                    <div className="flex flex-col gap-1">
-                      {youtubeResults.map((r) => (
-                        <button
-                          key={r.videoId}
-                          onClick={() => loadYoutubeVideo(r.videoId)}
-                          className="flex items-center gap-2 rounded-lg p-1.5 text-left hover:bg-zinc-800"
-                        >
-                          <img src={r.thumbnailUrl} alt="" className="h-10 w-14 rounded object-cover" />
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-xs font-medium text-white">{r.title}</span>
-                            <span className="block truncate text-xs text-zinc-500">{r.channelTitle}</span>
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <button
+                  onClick={() => setYoutubeModalMode('together')}
+                  className="rounded-lg border border-zinc-700 p-3 text-left hover:bg-zinc-800"
+                >
+                  <p className="text-sm font-medium text-white">🎬 Watch Together</p>
+                  <p className="text-xs text-zinc-500">Watch any YouTube video in sync with the room.</p>
+                </button>
               </div>
+            ) : (
+              <>
+                <div className="mb-3 flex gap-2">
+                  <button
+                    onClick={() => setYoutubeTab('search')}
+                    className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium ${
+                      youtubeTab === 'search' ? 'bg-purple-600 text-white' : 'border border-zinc-700 text-zinc-300'
+                    }`}
+                  >
+                    Search
+                  </button>
+                  <button
+                    onClick={() => setYoutubeTab('link')}
+                    className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium ${
+                      youtubeTab === 'link' ? 'bg-purple-600 text-white' : 'border border-zinc-700 text-zinc-300'
+                    }`}
+                  >
+                    Paste link
+                  </button>
+                </div>
+
+                {youtubeTab === 'link' ? (
+                  <>
+                    <p className="mb-2 text-xs text-zinc-500">
+                      {youtubeModalMode === 'karaoke'
+                        ? 'Paste a YouTube link, e.g. a karaoke/lyrics video.'
+                        : 'Paste any YouTube link to watch together.'}
+                    </p>
+                    <input
+                      type="text"
+                      value={youtubeUrlInput}
+                      onChange={(e) => setYoutubeUrlInput(e.target.value)}
+                      placeholder="https://youtube.com/watch?v=…"
+                      className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
+                    />
+                    {youtubeError && <p className="mt-1 text-xs text-red-400">{youtubeError}</p>}
+                    <button
+                      onClick={handleLoadYoutubeLink}
+                      disabled={!youtubeUrlInput.trim()}
+                      className="mt-2 w-full rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+                    >
+                      Load for everyone
+                    </button>
+                  </>
+                ) : (
+                  <div className="flex min-h-0 flex-1 flex-col gap-2">
+                    <form onSubmit={handleYoutubeSearch} className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder={youtubeModalMode === 'karaoke' ? 'Search your favorite song' : 'Search any video'}
+                        value={youtubeQuery}
+                        onChange={(e) => setYoutubeQuery(e.target.value)}
+                        className="flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
+                      />
+                      <button
+                        type="submit"
+                        disabled={youtubeSearching}
+                        className="rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                      >
+                        {youtubeSearching ? '…' : 'Search'}
+                      </button>
+                    </form>
+                    {youtubeError && <p className="text-xs text-red-400">{youtubeError}</p>}
+                    <div className="flex-1 overflow-y-auto">
+                      {youtubeResults.length === 0 ? (
+                        <p className="py-4 text-center text-xs text-zinc-500">
+                          {youtubeModalMode === 'karaoke' ? 'Search for your favorite song.' : 'Search for a video.'}
+                        </p>
+                      ) : (
+                        <div className="flex flex-col gap-1">
+                          {youtubeResults.map((r) => (
+                            <button
+                              key={r.videoId}
+                              onClick={() => loadYoutubeVideo(r.videoId, youtubeModalMode)}
+                              className="flex items-center gap-2 rounded-lg p-1.5 text-left hover:bg-zinc-800"
+                            >
+                              <img src={r.thumbnailUrl} alt="" className="h-10 w-14 rounded object-cover" />
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-xs font-medium text-white">{r.title}</span>
+                                <span className="block truncate text-xs text-zinc-500">{r.channelTitle}</span>
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
       )}
 
       <div className={youtubeVideoId ? 'flex flex-col gap-2' : 'hidden'}>
+        {watchPartyMode && (
+          <p className="text-xs text-zinc-500">
+            {watchPartyMode === 'karaoke' ? '🎤 Karaoke Mode' : '🎬 Watch Together'}
+          </p>
+        )}
         <div ref={ytContainerRef} className="overflow-hidden rounded-lg" />
         {isOwner && (
           <button
             onClick={handleStopYoutube}
             className="self-start rounded-lg border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300"
           >
-            ⏹ Stop Karaoke Mode
+            ⏹ Stop {watchPartyMode === 'karaoke' ? 'Karaoke Mode' : 'Watch Party'}
           </button>
         )}
       </div>
