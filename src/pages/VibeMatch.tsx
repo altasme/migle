@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Room, RoomEvent, Track } from 'livekit-client'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
@@ -39,6 +39,7 @@ function formatCountdown(secondsLeft: number) {
 
 export function VibeMatch() {
   const navigate = useNavigate()
+  const location = useLocation()
   const userId = useAuthStore((s) => s.session?.user.id)
 
   const [phase, setPhase] = useState<Phase>('select')
@@ -85,6 +86,17 @@ export function VibeMatch() {
 
   useEffect(() => {
     getMyVoiceMinglesRemaining().then(setVoiceMinglesLeft).catch(() => {})
+  }, [])
+
+  // Home's Text/Voice tiles skip the select screen and jump straight into
+  // a search, passed via navigation state rather than a URL param since
+  // it's a one-time trigger, not a shareable/bookmarkable page state.
+  useEffect(() => {
+    const autoMode = (location.state as { mode?: 'text' | 'voice' } | null)?.mode
+    if (autoMode === 'text' || autoMode === 'voice') {
+      startSearching(autoMode)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Leaving the page mid-search or mid-match tears things down — matches

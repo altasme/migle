@@ -27,7 +27,7 @@ export function UsernameClaim() {
       return
     }
     if (!birthdate || birthdate > eighteenYearsAgo()) {
-      setError('You must be 18 or older to use Mingle.')
+      setError('You must be 18 or older to use Mingleverse.')
       return
     }
 
@@ -43,7 +43,7 @@ export function UsernameClaim() {
       if (error.code === '23505') {
         setError('That username is taken.')
       } else if (error.message.includes('adults_only')) {
-        setError('You must be 18 or older to use Mingle.')
+        setError('You must be 18 or older to use Mingleverse.')
       } else if (error.message.includes('username')) {
         setError('Username must be 3–16 characters.')
       } else {

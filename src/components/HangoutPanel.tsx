@@ -88,7 +88,10 @@ export function HangoutPanel() {
 
   return (
     <section className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Your hangout</h2>
+      <h2 className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        <span>🏠</span>
+        Your hangout
+      </h2>
       {error && <p className="mb-2 text-sm text-red-400">{error}</p>}
 
       {!myRoom ? (
@@ -123,7 +126,7 @@ export function HangoutPanel() {
             <div>
               <p className="font-medium text-white">{myRoom.name}</p>
               {myRoom.topic && <p className="text-xs text-zinc-400">{myRoom.topic}</p>}
-              <p className="text-xs text-zinc-500">Invite-only, friends only</p>
+              <p className="text-xs text-zinc-500">Friends only — they can drop in anytime</p>
             </div>
             <div className="flex gap-2">
               <button

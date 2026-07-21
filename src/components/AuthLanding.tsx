@@ -5,7 +5,7 @@ export function AuthLanding({ onPick }: { onPick: (mode: 'signup' | 'login') => 
   return (
     <div className="flex min-h-svh flex-col overflow-hidden bg-gradient-to-b from-[#1a1035] via-[#2a1550] to-[#150a28]">
       <div className="flex flex-col items-center gap-1 px-6 pt-14 text-center">
-        <img src="/logo.png" alt="Mingle" className="h-44 w-44" />
+        <img src="/logo.png" alt="Mingleverse" className="h-44 w-44" />
         <p className="text-base text-zinc-300">Meet. Chat. Play. Belong.</p>
       </div>
 
