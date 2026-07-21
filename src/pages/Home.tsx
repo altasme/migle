@@ -14,13 +14,16 @@ export function Home() {
   const { onlineFriends } = useHomeSocial()
 
   return (
-    <div className="flex flex-col gap-6 p-4">
-      <p className="text-sm text-zinc-400">Welcome back, {profile?.username}</p>
+    <div className="flex flex-col gap-7 p-4">
+      <p className="text-xl font-semibold text-white">
+        Welcome back, <span className="text-purple-400">{profile?.username}</span>
+      </p>
 
       <Link
         to="/vibematch"
-        className="rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 p-6 text-center shadow-lg"
+        className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-600 to-pink-600 p-6 text-center shadow-lg shadow-purple-950/40 transition-transform active:scale-[0.98]"
       >
+        <div className="pointer-events-none absolute -right-6 -top-6 h-28 w-28 rounded-full bg-white/10 blur-2xl" />
         <p className="text-lg font-semibold text-white">✨ Let's start Mingling!</p>
         <p className="mt-1 text-sm text-white/80">Meet someone new, right now.</p>
       </Link>
@@ -29,7 +32,7 @@ export function Home() {
         <span className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-600/20 text-purple-400">
           <FriendsIcon className="h-6 w-6" />
         </span>
-        <span className="text-xs text-zinc-300">Friends</span>
+        <span className="text-xs font-medium text-zinc-300">Friends</span>
       </Link>
 
       <HangoutInvites />
@@ -37,7 +40,9 @@ export function Home() {
 
       {onlineFriends.length > 0 && (
         <section>
-          <h2 className="mb-3 text-sm font-medium text-zinc-400">Friends online</h2>
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            Friends online
+          </h2>
           <div className="flex gap-3 overflow-x-auto pb-1">
             {onlineFriends.map((f) => (
               <Link key={f.id} to="/friends" className="flex flex-shrink-0 flex-col items-center gap-1">

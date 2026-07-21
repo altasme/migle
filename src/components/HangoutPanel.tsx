@@ -88,7 +88,7 @@ export function HangoutPanel() {
 
   return (
     <section className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-      <h2 className="mb-3 text-sm font-medium text-zinc-400">Your hangout</h2>
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Your hangout</h2>
       {error && <p className="mb-2 text-sm text-red-400">{error}</p>}
 
       {!myRoom ? (
