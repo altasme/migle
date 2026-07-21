@@ -236,11 +236,15 @@ export function VibeMatch() {
 
   // The 3-minute clock: past the deadline, either both hearts are in (in
   // which case the timer just stops mattering) or the match ends and asks
-  // the user to move on.
+  // the user to move on. Counts locally from 0 rather than comparing
+  // Date.now() against session.created_at - a device clock that's off in
+  // any way (wrong timezone, wrong date, anything) used to make a
+  // brand-new match look already expired the instant it started.
   useEffect(() => {
     if (phase !== 'matched' || !session) return
+    let secs = 0
     const id = setInterval(() => {
-      const secs = Math.floor((Date.now() - new Date(session.created_at).getTime()) / 1000)
+      secs += 1
       setElapsed(secs)
       if (secs >= MATCH_DEADLINE_SEC && !timeoutHandledRef.current) {
         setLikes((current) => {
