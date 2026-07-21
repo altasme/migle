@@ -56,11 +56,17 @@ export async function markMatchReady(sessionId: string): Promise<MatchSession> {
 export async function getSessionState(
   sessionId: string,
 ): Promise<Pick<MatchSession, 'ended_at' | 'liked_a' | 'liked_b' | 'ready_a' | 'ready_b'> | null> {
-  const { data } = await supabase
+  // Was silently swallowing errors before (data came back undefined on
+  // failure, indistinguishable from "row not found yet"). That made a
+  // persistent RLS/network failure here look identical to "still
+  // syncing," which is exactly the stuck-on-Connecting symptom - throw
+  // so callers can tell the two apart and surface it.
+  const { data, error } = await supabase
     .from('match_sessions')
     .select('ended_at, liked_a, liked_b, ready_a, ready_b')
     .eq('id', sessionId)
     .maybeSingle()
+  if (error) throw error
   return data
 }
 
