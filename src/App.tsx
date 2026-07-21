@@ -16,6 +16,7 @@ import { Chat } from './pages/Chat'
 import { DmThread } from './pages/DmThread'
 import { FollowList } from './pages/FollowList'
 import { Friends } from './pages/Friends'
+import { FriendProfile } from './pages/FriendProfile'
 import { BlockedUsers } from './pages/BlockedUsers'
 import { AdminReports } from './pages/AdminReports'
 
@@ -93,6 +94,7 @@ function AppShell() {
       <Route path="/wardrobe" element={<Wardrobe />} />
       <Route path="/dm/:threadId" element={<DmThread />} />
       <Route path="/friends" element={<Friends />} />
+      <Route path="/friend/:userId" element={<FriendProfile />} />
       <Route path="/followers" element={<FollowList kind="followers" />} />
       <Route path="/following" element={<FollowList kind="following" />} />
       <Route path="/blocked" element={<BlockedUsers />} />

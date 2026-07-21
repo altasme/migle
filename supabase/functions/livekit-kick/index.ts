@@ -35,15 +35,33 @@ Deno.serve(async (req) => {
   const { roomId, targetUserId } = await req.json();
   if (!roomId || !targetUserId) return json({ error: 'roomId and targetUserId required' }, 400);
 
-  // Never trust a client-side "I'm the owner" claim.
+  // Never trust a client-side "I'm the owner" claim. Room mates get the
+  // same kick authority as the owner (never over the owner themself),
+  // matching owner_kick_member() on the DB side.
   const { data: room } = await supabase
     .from('rooms')
     .select('id, owner_id')
     .eq('id', roomId)
     .single();
 
-  if (!room || room.owner_id !== user.id) {
-    return json({ error: 'not the room owner' }, 403);
+  if (!room) return json({ error: 'room not found' }, 404);
+
+  if (room.owner_id === targetUserId) {
+    return json({ error: 'cannot kick the room owner' }, 403);
+  }
+
+  let authorized = room.owner_id === user.id;
+  if (!authorized) {
+    const { data: member } = await supabase
+      .from('room_members')
+      .select('role')
+      .eq('room_id', roomId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    authorized = member?.role === 'roommate';
+  }
+  if (!authorized) {
+    return json({ error: 'not authorized' }, 403);
   }
 
   const livekitHost = Deno.env.get('LIVEKIT_URL')!

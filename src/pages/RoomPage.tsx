@@ -75,6 +75,7 @@ type RoomRow = {
   watch_party_position_seconds: number
   watch_party_is_playing: boolean
   watch_party_updated_at: string | null
+  watch_party_host_id: string | null
 }
 
 // Extrapolates "where the video should be right now" from the last
@@ -92,6 +93,7 @@ type Member = {
   user_id: string
   seat_index: number | null
   is_muted: boolean
+  role: 'member' | 'roommate'
   username: string
   equipped: Record<string, string>
 }
@@ -108,6 +110,7 @@ type RoomMemberRow = {
   user_id: string
   seat_index: number | null
   is_muted: boolean
+  role: 'member' | 'roommate'
   profiles: { username: string; equipped: Record<string, string> } | null
 }
 
@@ -156,6 +159,8 @@ export function RoomPage() {
   const [settingsTheme, setSettingsTheme] = useState<RoomThemeId>('purple')
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsError, setSettingsError] = useState<string | null>(null)
+  const [membersPanelOpen, setMembersPanelOpen] = useState(false)
+  const [roleBusyId, setRoleBusyId] = useState<string | null>(null)
 
   const [nowPlaying, setNowPlaying] = useState<{ title: string; djUsername: string; paused: boolean } | null>(
     null,
@@ -218,6 +223,17 @@ export function RoomPage() {
   // moment - room/ownership loads asynchronously after, so a plain
   // variable would go stale. Same fix as membersRef elsewhere in this file.
   const isOwnerRef = useRef(false)
+  // Watch Party/Karaoke used to be driven entirely by room ownership - now
+  // any member can start one, so "who's currently authoritative for this
+  // session" (drives the sync heartbeat, can stop it) is tracked
+  // separately from isOwner. Same ref-for-closures / state-for-render
+  // split as isOwner above.
+  const [isHost, setIsHost] = useState(false)
+  const isHostRef = useRef(false)
+  function setHost(value: boolean) {
+    isHostRef.current = value
+    setIsHost(value)
+  }
 
   useEffect(() => {
     membersRef.current = members
@@ -234,7 +250,7 @@ export function RoomPage() {
     supabase
       .from('rooms')
       .select(
-        'id, slug, name, topic, theme, max_seats, owner_id, watch_party_video_id, watch_party_mode, watch_party_position_seconds, watch_party_is_playing, watch_party_updated_at',
+        'id, slug, name, topic, theme, max_seats, owner_id, watch_party_video_id, watch_party_mode, watch_party_position_seconds, watch_party_is_playing, watch_party_updated_at, watch_party_host_id',
       )
       .eq('slug', slug)
       .maybeSingle()
@@ -246,13 +262,14 @@ export function RoomPage() {
   async function loadMembers(rid: string) {
     const { data } = await supabase
       .from('room_members')
-      .select('user_id, seat_index, is_muted, profiles(username, equipped)')
+      .select('user_id, seat_index, is_muted, role, profiles(username, equipped)')
       .eq('room_id', rid)
     const rows = (data ?? []) as unknown as RoomMemberRow[]
     const mapped = rows.map((r) => ({
       user_id: r.user_id,
       seat_index: r.seat_index,
       is_muted: r.is_muted,
+      role: r.role,
       username: r.profiles?.username ?? '?',
       equipped: r.profiles?.equipped ?? {},
     }))
@@ -415,10 +432,10 @@ export function RoomPage() {
         }
       })
       .on('broadcast', { event: 'youtube' }, async ({ payload }) => {
-        // The owner's own player is the source of truth, driven by their
+        // The host's own player is the source of truth, driven by their
         // real interactions with YouTube's native controls - it doesn't
         // react to its own broadcasts.
-        if (isOwnerRef.current) return
+        if (isHostRef.current) return
         const p = payload as {
           action: 'load' | 'sync' | 'stop'
           videoId?: string
@@ -432,12 +449,14 @@ export function RoomPage() {
           setWatchPartyMode(null)
           ytPlayerRef.current?.stopVideo?.()
           finalizeMyKaraokeScore()
+          setHost(false)
           return
         }
         if (p.action === 'load' && p.videoId) {
           setYoutubeVideoId(p.videoId)
           setWatchPartyMode(p.mode ?? null)
           resetKaraokeSession()
+          setHost(false)
           const player = await ensureYtPlayer(false)
           player.loadVideoById({ videoId: p.videoId, startSeconds: p.time ?? 0 })
           return
@@ -528,6 +547,11 @@ export function RoomPage() {
   }, [mySeat, slug])
 
   const isOwner = room !== null && room !== 'not-found' && room.owner_id === userId
+  // Room mates get the owner's authority (mute/kick/invite/settings)
+  // except over the owner themself - enforced server-side in each RPC,
+  // this just drives which controls the client shows.
+  const isRoommate = me?.role === 'roommate'
+  const canModerate = isOwner || isRoommate
   useEffect(() => {
     isOwnerRef.current = isOwner
   }, [isOwner])
@@ -541,6 +565,7 @@ export function RoomPage() {
     if (!room || room === 'not-found' || resumedWatchPartyRef.current) return
     if (!room.watch_party_video_id) return
     resumedWatchPartyRef.current = true
+    setHost(room.watch_party_host_id === userId)
     const mode = room.watch_party_mode
     const videoId = room.watch_party_video_id
     const position = estimateWatchPartyPosition(room)
@@ -548,9 +573,9 @@ export function RoomPage() {
     setWatchPartyMode(mode)
     resetKaraokeSession()
     ;(async () => {
-      const player = await ensureYtPlayer(isOwnerRef.current)
+      const player = await ensureYtPlayer(isHostRef.current)
       player.loadVideoById({ videoId, startSeconds: Math.max(0, position) })
-      if (isOwnerRef.current) startYoutubeSyncHeartbeat()
+      if (isHostRef.current) startYoutubeSyncHeartbeat()
     })()
   }, [room])
 
@@ -723,6 +748,17 @@ export function RoomPage() {
     }
   }
 
+  async function toggleRoomMate(targetUserId: string, makeRoommate: boolean) {
+    if (!roomId || !isOwner) return
+    setRoleBusyId(targetUserId)
+    try {
+      await supabase.rpc('set_room_mate', { p_room: roomId, p_user: targetUserId, p_is_roommate: makeRoommate })
+      await loadMembers(roomId)
+    } finally {
+      setRoleBusyId(null)
+    }
+  }
+
   async function sendMessage(e: React.FormEvent) {
     e.preventDefault()
     if (!roomId || !userId || !chatInput.trim()) return
@@ -809,7 +845,7 @@ export function RoomPage() {
   // same as any other audio track - no changes needed on the listening
   // side either way.
   async function startPlayingSource(src: string, title: string, opts?: { crossOrigin?: boolean }) {
-    if (!roomId || !me || !isOwner) return
+    if (!roomId || !me) return
 
     // Publishing anything requires a mic seat - canPublish is granted
     // server-side based on seat status (Rule 4), there's no separate
@@ -919,7 +955,7 @@ export function RoomPage() {
 
 
   function handleStopMusic() {
-    if (!isOwner) return
+    if (!me || nowPlaying?.djUsername !== me.username) return
     stopMusicLocal()
     setNowPlaying(null)
     channelRef.current?.send({ type: 'broadcast', event: 'music', payload: { action: 'stop' } })
@@ -992,12 +1028,12 @@ export function RoomPage() {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onStateChange: (e: any) => {
             // Natural end of video (state 0): finalize my own score, and
-            // if I'm the owner, cascade a stop to the room. isOwnerRef is
+            // if I'm the host, cascade a stop to the room. isHostRef is
             // read (not a plain variable) because this callback is
             // registered once, when the player is first created.
             if (e.data === 0) {
               finalizeMyKaraokeScore()
-              if (isOwnerRef.current) handleStopYoutube()
+              if (isHostRef.current) handleStopYoutube()
               return
             }
             // Playing (1) or paused (2): keep the room row's resume point
@@ -1005,17 +1041,15 @@ export function RoomPage() {
             // stable for this component's whole lifetime (tied to slug),
             // so it's safe to read directly even from this long-lived
             // callback.
-            if ((e.data === 1 || e.data === 2) && isOwnerRef.current && roomId) {
+            if ((e.data === 1 || e.data === 2) && isHostRef.current && roomId) {
               const p = ytPlayerRef.current
               if (p && typeof p.getCurrentTime === 'function') {
                 supabase
-                  .from('rooms')
-                  .update({
-                    watch_party_position_seconds: p.getCurrentTime(),
-                    watch_party_is_playing: e.data === 1,
-                    watch_party_updated_at: new Date().toISOString(),
+                  .rpc('sync_watch_party_position', {
+                    p_room: roomId,
+                    p_position_seconds: p.getCurrentTime(),
+                    p_is_playing: e.data === 1,
                   })
-                  .eq('id', roomId)
                   .then(() => {})
               }
             }
@@ -1039,26 +1073,18 @@ export function RoomPage() {
   }
 
   async function loadYoutubeVideo(videoId: string, mode: 'karaoke' | 'together') {
-    if (!isOwner || !roomId) return
+    if (!me || !roomId) return
     setYoutubeError(null)
     setYoutubeModalOpen(false)
     setYoutubeVideoId(videoId)
     setWatchPartyMode(mode)
     resetKaraokeSession()
+    setHost(true)
     const player = await ensureYtPlayer(true)
     player.loadVideoById(videoId)
     channelRef.current?.send({ type: 'broadcast', event: 'youtube', payload: { action: 'load', videoId, mode } })
     startYoutubeSyncHeartbeat()
-    await supabase
-      .from('rooms')
-      .update({
-        watch_party_video_id: videoId,
-        watch_party_mode: mode,
-        watch_party_position_seconds: 0,
-        watch_party_is_playing: true,
-        watch_party_updated_at: new Date().toISOString(),
-      })
-      .eq('id', roomId)
+    await supabase.rpc('start_watch_party', { p_room: roomId, p_video_id: videoId, p_mode: mode })
   }
 
   async function handleLoadYoutubeLink() {
@@ -1084,7 +1110,7 @@ export function RoomPage() {
   }
 
   function handleStopYoutube() {
-    if (!isOwnerRef.current) return
+    if (!isHostRef.current) return
     if (ytSyncIntervalRef.current) {
       clearInterval(ytSyncIntervalRef.current)
       ytSyncIntervalRef.current = null
@@ -1094,23 +1120,14 @@ export function RoomPage() {
     ytPlayerRef.current?.stopVideo?.()
     channelRef.current?.send({ type: 'broadcast', event: 'youtube', payload: { action: 'stop' } })
     finalizeMyKaraokeScore()
+    setHost(false)
     if (roomId) {
-      supabase
-        .from('rooms')
-        .update({
-          watch_party_video_id: null,
-          watch_party_mode: null,
-          watch_party_position_seconds: 0,
-          watch_party_is_playing: true,
-          watch_party_updated_at: null,
-        })
-        .eq('id', roomId)
-        .then(() => {})
+      supabase.rpc('stop_watch_party', { p_room: roomId }).then(() => {})
     }
   }
 
   function toggleMusicPause() {
-    if (!isOwner) return
+    if (!me || nowPlaying?.djUsername !== me.username) return
     const audioEl = musicAudioElRef.current
     if (!audioEl) return
     const nowPaused = !audioEl.paused
@@ -1126,7 +1143,7 @@ export function RoomPage() {
   }
 
   function handleMusicVolumeChange(v: number) {
-    if (!isOwner) return
+    if (!me || nowPlaying?.djUsername !== me.username) return
     setMusicVolume(v)
     if (musicAudioElRef.current) musicAudioElRef.current.volume = v
   }
@@ -1164,7 +1181,7 @@ export function RoomPage() {
   }
 
   async function handleSaveSettings() {
-    if (!room || room === 'not-found' || !isOwner || !settingsName.trim()) return
+    if (!room || room === 'not-found' || !canModerate || !settingsName.trim()) return
     setSettingsSaving(true)
     setSettingsError(null)
     try {
@@ -1199,7 +1216,10 @@ export function RoomPage() {
   if (joinDenied) {
     return (
       <div className="p-6 text-center">
-        <p className="text-zinc-400">This hangout is invite-only, and you haven't been invited.</p>
+        <p className="text-zinc-400">
+          Can't get in right now — either you haven't been invited, or the owner isn't in this hangout at the
+          moment. Try again once they're back.
+        </p>
         <button onClick={() => navigate('/')} className="mt-2 text-purple-400 hover:underline">
           Back home
         </button>
@@ -1245,7 +1265,7 @@ export function RoomPage() {
           <p className="text-xs text-white/60">/r/{room.slug}</p>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
-          {isOwner && (
+          {canModerate && (
             <button
               onClick={openSettingsModal}
               className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm font-medium text-white"
@@ -1253,7 +1273,13 @@ export function RoomPage() {
               ⚙️
             </button>
           )}
-          {isOwner && (
+          <button
+            onClick={() => setMembersPanelOpen(true)}
+            className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm font-medium text-white"
+          >
+            👤 Members
+          </button>
+          {canModerate && (
             <button
               onClick={openInvitePanel}
               className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm font-medium text-white"
@@ -1261,7 +1287,7 @@ export function RoomPage() {
               👥 Invite
             </button>
           )}
-          {isOwner && musicStatus !== 'playing' && musicStatus !== 'starting' && (
+          {!!me && !nowPlaying && musicStatus !== 'starting' && (
             <button
               onClick={() => setMusicPickerOpen(true)}
               className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm font-medium text-white"
@@ -1269,7 +1295,7 @@ export function RoomPage() {
               🎵 Play music
             </button>
           )}
-          {isOwner && !youtubeVideoId && (
+          {!!me && !youtubeVideoId && (
             <button
               onClick={() => {
                 setYoutubeModalMode(null)
@@ -1314,7 +1340,7 @@ export function RoomPage() {
               {nowPlaying.paused && <span className="text-zinc-500"> · paused</span>}
             </span>
           </div>
-          {isOwner && (
+          {nowPlaying.djUsername === me?.username && (
             <div className="flex items-center gap-2">
               <button
                 onClick={toggleMusicPause}
@@ -1495,9 +1521,9 @@ export function RoomPage() {
         )}
         <div
           ref={ytContainerRef}
-          className={`overflow-hidden rounded-lg ${isOwner ? '' : 'pointer-events-none'}`}
+          className={`overflow-hidden rounded-lg ${isHost ? '' : 'pointer-events-none'}`}
         />
-        {isOwner && (
+        {isHost && (
           <button
             onClick={handleStopYoutube}
             className="self-start rounded-lg border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300"
@@ -1644,7 +1670,7 @@ export function RoomPage() {
                       targetUsername={occupant.username}
                       roomId={roomId ?? undefined}
                       ownerControls={
-                        isOwner
+                        canModerate && occupant.user_id !== room.owner_id
                           ? {
                               isMuted: occupant.is_muted,
                               onMute: (muted) => ownerMute(occupant.user_id, muted),
@@ -1714,7 +1740,7 @@ export function RoomPage() {
               className="flex items-center gap-1 rounded-full bg-zinc-900 px-2 py-1"
             >
               {l.username}
-              {isOwner && l.user_id !== userId && watchPartyMode === 'karaoke' && youtubeVideoId && (
+              {isHost && l.user_id !== userId && watchPartyMode === 'karaoke' && youtubeVideoId && (
                 <button
                   onClick={() => setAsSinger(l.user_id)}
                   className="rounded-full bg-purple-900/60 px-1.5 py-0.5 text-xs text-purple-300"
@@ -1729,7 +1755,7 @@ export function RoomPage() {
                   targetUsername={l.username}
                   roomId={roomId ?? undefined}
                   ownerControls={
-                    isOwner
+                    canModerate && l.user_id !== room.owner_id
                       ? {
                           isMuted: l.is_muted,
                           onMute: (muted) => ownerMute(l.user_id, muted),
@@ -1835,6 +1861,56 @@ export function RoomPage() {
             >
               {settingsSaving ? 'Saving…' : 'Save'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {membersPanelOpen && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60">
+          <div className="mx-4 flex max-h-[80vh] w-full max-w-xs flex-col rounded-2xl bg-zinc-900 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-medium text-white">Members & roles</p>
+              <button onClick={() => setMembersPanelOpen(false)} className="text-zinc-400 hover:text-white">
+                ✕
+              </button>
+            </div>
+            <div className="flex flex-col gap-2 overflow-y-auto">
+              {members.map((m) => (
+                <div
+                  key={m.user_id}
+                  className="flex items-center gap-2 rounded-lg border border-zinc-800 px-3 py-2"
+                >
+                  <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-white">
+                    <AvatarImage
+                      equipped={m.equipped}
+                      fallbackLetter={m.username[0]?.toUpperCase() ?? '?'}
+                      className="h-full w-full object-contain"
+                    />
+                  </div>
+                  <span className="flex-1 truncate text-sm text-white">{m.username}</span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                      m.user_id === room.owner_id
+                        ? 'bg-amber-900/50 text-amber-300'
+                        : m.role === 'roommate'
+                          ? 'bg-purple-900/50 text-purple-300'
+                          : 'bg-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    {m.user_id === room.owner_id ? 'Owner' : m.role === 'roommate' ? 'Room mate' : 'Member'}
+                  </span>
+                  {isOwner && m.user_id !== room.owner_id && (
+                    <button
+                      onClick={() => toggleRoomMate(m.user_id, m.role !== 'roommate')}
+                      disabled={roleBusyId === m.user_id}
+                      className="rounded-lg border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 disabled:opacity-50"
+                    >
+                      {m.role === 'roommate' ? 'Remove' : 'Make room mate'}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

@@ -12,7 +12,7 @@ import { HangoutInvites } from '../components/HangoutInvites'
 export function Home() {
   const navigate = useNavigate()
   const profile = useAuthStore((s) => s.profile)
-  const { onlineFriends } = useHomeSocial()
+  const { onlineFriends, friendHangouts } = useHomeSocial()
 
   return (
     <div className="flex flex-col gap-6 p-4">
@@ -59,6 +59,28 @@ export function Home() {
 
       <HangoutInvites />
       <HangoutPanel />
+
+      {friendHangouts.length > 0 && (
+        <section className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            🏠 Friends' hangouts
+          </h2>
+          <div className="flex flex-col gap-2">
+            {friendHangouts.map((h) => (
+              <Link
+                key={h.roomSlug}
+                to={`/r/${h.roomSlug}`}
+                className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-2.5 text-sm transition-transform active:scale-[0.98]"
+              >
+                <span className="text-zinc-200">
+                  <span className="font-medium text-white">{h.ownerUsername}</span>'s {h.roomName}
+                </span>
+                <span className="text-purple-400">Join →</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
         <div className="mb-3 flex items-center justify-between">

@@ -59,14 +59,16 @@ export function Friends() {
               key={f.id}
               className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/50 p-3"
             >
-              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-white">
-                <AvatarImage
-                  equipped={f.equipped}
-                  fallbackLetter={f.username[0]?.toUpperCase() ?? '?'}
-                  className="h-full w-full object-contain"
-                />
-              </div>
-              <span className="flex-1 text-sm font-medium text-white">{f.username}</span>
+              <Link to={`/friend/${f.id}`} className="flex flex-1 items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-white">
+                  <AvatarImage
+                    equipped={f.equipped}
+                    fallbackLetter={f.username[0]?.toUpperCase() ?? '?'}
+                    className="h-full w-full object-contain"
+                  />
+                </div>
+                <span className="text-sm font-medium text-white">{f.username}</span>
+              </Link>
               <button
                 onClick={() => chat(f.id)}
                 disabled={openingId === f.id}

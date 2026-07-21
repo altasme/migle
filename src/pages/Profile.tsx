@@ -5,6 +5,9 @@ import { useAuthStore } from '../store/authStore'
 import { AvatarImage } from '../components/AvatarImage'
 import { getFriendCount } from '../lib/friends'
 import { ECONOMY_ENABLED } from '../lib/featureFlags'
+import { INTEREST_OPTIONS } from '../lib/tags'
+
+const BIO_MAX = 255
 
 type ActiveRelationship = {
   partnerUsername: string
@@ -12,18 +15,63 @@ type ActiveRelationship = {
   streak_days: number
 }
 
+function InterestChip({ label, selected, onClick }: { label: string; selected: boolean; onClick?: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+        selected
+          ? 'border-purple-500 bg-purple-600 text-white'
+          : 'border-zinc-700 bg-zinc-900 text-zinc-400'
+      } ${onClick ? '' : 'disabled:opacity-100'}`}
+    >
+      {label}
+    </button>
+  )
+}
+
 export function Profile() {
   const profile = useAuthStore((s) => s.profile)
   const session = useAuthStore((s) => s.session)
   const signOut = useAuthStore((s) => s.signOut)
+  const refreshProfile = useAuthStore((s) => s.refreshProfile)
   const [relationship, setRelationship] = useState<ActiveRelationship | null>(null)
   const [friendCount, setFriendCount] = useState(0)
+  const [editing, setEditing] = useState(false)
+  const [bioInput, setBioInput] = useState('')
+  const [interestsInput, setInterestsInput] = useState<string[]>([])
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     const uid = session?.user.id
     if (!uid) return
     getFriendCount(uid).then(setFriendCount)
   }, [session?.user.id])
+
+  function startEditing() {
+    setBioInput(profile?.bio ?? '')
+    setInterestsInput(profile?.interests ?? [])
+    setEditing(true)
+  }
+
+  function toggleInterest(value: string) {
+    setInterestsInput((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]))
+  }
+
+  async function saveProfile() {
+    const uid = session?.user.id
+    if (!uid) return
+    setSaving(true)
+    await supabase
+      .from('profiles')
+      .update({ bio: bioInput.trim() || null, interests: interestsInput })
+      .eq('id', uid)
+    await refreshProfile()
+    setSaving(false)
+    setEditing(false)
+  }
 
   useEffect(() => {
     const uid = session?.user.id
@@ -79,6 +127,69 @@ export function Profile() {
           <span className="text-zinc-400">Friends</span>
         </Link>
       </div>
+
+      {editing ? (
+        <div className="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+          <div>
+            <textarea
+              value={bioInput}
+              onChange={(e) => setBioInput(e.target.value.slice(0, BIO_MAX))}
+              maxLength={BIO_MAX}
+              rows={3}
+              placeholder="Tell people a little about yourself…"
+              className="w-full resize-none rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
+            />
+            <p className="mt-1 text-right text-xs text-zinc-600">
+              {bioInput.length}/{BIO_MAX}
+            </p>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Interests</p>
+            <div className="flex flex-wrap gap-2">
+              {INTEREST_OPTIONS.map((opt) => (
+                <InterestChip
+                  key={opt}
+                  label={opt}
+                  selected={interestsInput.includes(opt)}
+                  onClick={() => toggleInterest(opt)}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setEditing(false)}
+              disabled={saving}
+              className="flex-1 rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={saveProfile}
+              disabled={saving}
+              className="flex-1 rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+          <p className="text-sm text-zinc-300">
+            {profile?.bio || <span className="text-zinc-600">No bio yet.</span>}
+          </p>
+          {profile && profile.interests.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {profile.interests.map((i) => (
+                <InterestChip key={i} label={i} selected />
+              ))}
+            </div>
+          )}
+          <button onClick={startEditing} className="self-start text-xs font-medium text-purple-400 hover:underline">
+            Edit bio & interests
+          </button>
+        </div>
+      )}
 
       {ECONOMY_ENABLED && relationship && (
         <div className="rounded-xl border border-pink-900/50 bg-pink-950/30 px-4 py-3 text-center text-sm">
