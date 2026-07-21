@@ -27,6 +27,16 @@ export type MatchMessage = {
 export async function requestMatch(mode: 'text' | 'voice'): Promise<MatchSession | null> {
   const { data, error } = await supabase.rpc('request_match', { p_mode: mode })
   if (error) throw error
+  // request_match() is declared to return a match_sessions row, and does
+  // `return null;` in plpgsql for "no partner yet." A plpgsql function
+  // returning a row type doesn't carry that across the RPC/JSON boundary
+  // as a true JSON null though - it arrives as an object with every field
+  // set to null. That object is truthy in JS, so callers checking
+  // `if (found)` were treating "still waiting" as a real match and
+  // entering a session with a null id - the root cause of the permanent
+  // "Connecting you with them..." stuck screen (every follow-up call for
+  // that "session" 400s, since no row has a null id).
+  if (!data || !data.id) return null
   return data
 }
 
