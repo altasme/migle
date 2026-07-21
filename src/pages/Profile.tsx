@@ -61,25 +61,27 @@ export function Profile() {
   }, [session?.user.id])
 
   return (
-    <div className="flex flex-col items-center gap-4 p-6 text-center">
-      <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-purple-900 text-2xl font-semibold text-white">
-        <AvatarImage
-          equipped={profile?.equipped}
-          fallbackLetter={profile?.username[0]?.toUpperCase() ?? '?'}
-          className="h-full w-full object-contain"
-        />
+    <div className="flex flex-col gap-6 p-6">
+      <div className="flex flex-col items-center gap-3 text-center">
+        <span className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-purple-700 to-pink-700 text-2xl font-semibold text-white ring-4 ring-purple-600/20">
+          <AvatarImage
+            equipped={profile?.equipped}
+            fallbackLetter={profile?.username[0]?.toUpperCase() ?? '?'}
+            className="h-full w-full object-contain"
+          />
+        </span>
+        <h1 className="text-2xl font-bold text-white">{profile?.username}</h1>
+        <Link
+          to="/friends"
+          className="flex items-center gap-1.5 rounded-full border border-zinc-800 bg-zinc-900/80 px-4 py-1.5 text-sm"
+        >
+          <span className="font-semibold text-white">{friendCount}</span>
+          <span className="text-zinc-400">Friends</span>
+        </Link>
       </div>
-      <div>
-        <h1 className="text-xl font-semibold text-white">{profile?.username}</h1>
-      </div>
-
-      <Link to="/friends" className="text-center">
-        <div className="text-lg font-semibold text-white">{friendCount}</div>
-        <div className="text-xs text-zinc-500">Friends</div>
-      </Link>
 
       {ECONOMY_ENABLED && relationship && (
-        <div className="rounded-lg border border-pink-900/50 bg-pink-950/30 px-4 py-2 text-sm">
+        <div className="rounded-xl border border-pink-900/50 bg-pink-950/30 px-4 py-3 text-center text-sm">
           <p className="text-pink-400">💍 Partnered with {relationship.partnerUsername}</p>
           <p className="text-xs text-zinc-400">
             CP {relationship.cp_score} · {relationship.streak_days} day streak
@@ -89,21 +91,28 @@ export function Profile() {
 
       <Link
         to="/wardrobe"
-        className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white"
+        className="rounded-xl bg-purple-600 px-4 py-3 text-center text-sm font-semibold text-white shadow-lg shadow-purple-950/40 transition-transform active:scale-[0.98]"
       >
-        Edit avatar
+        🎨 Edit avatar
       </Link>
-      <Link to="/blocked" className="text-sm text-zinc-400 hover:text-white">
-        🚫 Blocked users
-      </Link>
-      {profile?.is_admin && (
-        <Link to="/admin/reports" className="text-sm text-zinc-400 hover:text-white">
-          🛡️ Reports (admin)
+
+      <div className="flex flex-col divide-y divide-zinc-800 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/50">
+        <Link to="/blocked" className="px-4 py-3 text-sm text-zinc-300 hover:bg-zinc-800/50 hover:text-white">
+          🚫 Blocked users
         </Link>
-      )}
+        {profile?.is_admin && (
+          <Link
+            to="/admin/reports"
+            className="px-4 py-3 text-sm text-zinc-300 hover:bg-zinc-800/50 hover:text-white"
+          >
+            🛡️ Reports (admin)
+          </Link>
+        )}
+      </div>
+
       <button
         onClick={signOut}
-        className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:text-white"
+        className="rounded-xl border border-zinc-800 px-4 py-3 text-sm text-zinc-400 hover:text-white"
       >
         Log out
       </button>

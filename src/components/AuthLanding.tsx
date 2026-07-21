@@ -3,17 +3,17 @@ import { OAuthRow } from './OAuthRow'
 export function AuthLanding({ onPick }: { onPick: (mode: 'signup' | 'login') => void }) {
   return (
     <div className="flex min-h-svh flex-col overflow-hidden bg-gradient-to-b from-[#1a1035] via-[#2a1550] to-[#150a28]">
-      <div className="flex flex-col items-center gap-1 px-6 pt-14 text-center">
-        {/* Logo art is a wide wordmark (~4:1), not square - sized by width. */}
-        <img src="/logo.png" alt="Mingleverse" className="w-64" />
-        <p className="text-base text-zinc-300">Meet. Chat. Play. Belong.</p>
+      <div className="flex flex-col items-center gap-1 px-6 pt-10 text-center">
+        {/* Wide wordmark with the tagline baked in - sized by width, not
+            square. Tagline text lives in the art now, no separate <p>. */}
+        <img src="/logo.png" alt="Mingleverse — A universe where strangers become friends." className="w-[22rem]" />
       </div>
 
       <div className="relative min-h-[140px] flex-1">
         <img
           src="/auth-scene.png"
           alt=""
-          className="absolute inset-0 h-full w-full object-contain object-bottom"
+          className="absolute inset-0 h-full w-full origin-bottom scale-125 object-contain object-bottom"
         />
       </div>
 
