@@ -116,6 +116,7 @@ export function RoomPage() {
   )
   const [voiceError, setVoiceError] = useState<string | null>(null)
   const [seatError, setSeatError] = useState<string | null>(null)
+  const [passMicError, setPassMicError] = useState<string | null>(null)
 
   const [giftCatalog, setGiftCatalog] = useState<GiftCatalogItem[]>([])
   const [supporters, setSupporters] = useState<Supporter[]>([])
@@ -192,6 +193,8 @@ export function RoomPage() {
   const karaokeAccRef = useRef<KaraokeAccumulator | null>(null)
   const karaokeNeverMutedRef = useRef(true)
   const karaokeSampleIntervalRef = useRef<number | null>(null)
+  const prevMySeatRef = useRef<number | null | undefined>(undefined)
+  const selfInitiatedSeatChangeRef = useRef(false)
   // The 'youtube' broadcast handler is set up once inside a long-lived
   // effect (deps: [roomId, userId, slug]) and closes over isOwner at that
   // moment - room/ownership loads asynchronously after, so a plain
@@ -518,6 +521,22 @@ export function RoomPage() {
     watchPartyModeRef.current = watchPartyMode
   }, [watchPartyMode])
 
+  // Catch a seat assigned to us by someone else (owner_pass_mic) - self-
+  // service takeSeat/leaveSeat already reconnect voice themselves and set
+  // selfInitiatedSeatChangeRef so this effect skips those, avoiding a
+  // redundant double-reconnect for the same change.
+  useEffect(() => {
+    if (selfInitiatedSeatChangeRef.current) {
+      selfInitiatedSeatChangeRef.current = false
+      prevMySeatRef.current = mySeat
+      return
+    }
+    if (mySeat !== null && prevMySeatRef.current === null && slug) {
+      connectVoice(slug)
+    }
+    prevMySeatRef.current = mySeat
+  }, [mySeat, slug])
+
   // Fun Karaoke Scoring: while I'm seated during a Karaoke Mode session,
   // sample my own LiveKit mic level every 200ms against my own player's
   // song position. Self-reported per singer - see karaokeScore.ts for why.
@@ -576,6 +595,7 @@ export function RoomPage() {
       return
     }
     // Don't wait on the realtime round-trip for our own action — refresh now.
+    selfInitiatedSeatChangeRef.current = true
     await loadMembers(roomId)
     await connectVoice(slug)
   }
@@ -587,8 +607,20 @@ export function RoomPage() {
       .update({ seat_index: null, is_muted: false })
       .eq('room_id', roomId)
       .eq('user_id', userId)
+    selfInitiatedSeatChangeRef.current = true
     await loadMembers(roomId)
     await connectVoice(slug)
+  }
+
+  async function passMic(targetUserId: string) {
+    if (!roomId) return
+    setPassMicError(null)
+    const { error } = await supabase.rpc('owner_pass_mic', { p_room: roomId, p_user: targetUserId })
+    if (error) {
+      setPassMicError(error.message)
+      return
+    }
+    await loadMembers(roomId)
   }
 
   async function toggleMute() {
@@ -1506,6 +1538,8 @@ export function RoomPage() {
       )}
       {seatError && <p className="text-center text-sm text-red-400">{seatError}</p>}
 
+      {passMicError && <p className="text-center text-xs text-red-400">{passMicError}</p>}
+
       {listeners.length > 0 && (
         <div className="flex flex-wrap justify-center gap-2 text-xs text-zinc-500">
           {listeners.map((l) => (
@@ -1514,6 +1548,15 @@ export function RoomPage() {
               className="flex items-center gap-1 rounded-full bg-zinc-900 px-2 py-1"
             >
               {l.username}
+              {isOwner && l.user_id !== userId && watchPartyMode === 'karaoke' && youtubeVideoId && (
+                <button
+                  onClick={() => passMic(l.user_id)}
+                  className="rounded-full bg-purple-900/60 px-1.5 py-0.5 text-xs text-purple-300"
+                  title="Give this person the mic so they can sing and get scored"
+                >
+                  🎤 Pass mic
+                </button>
+              )}
               {l.user_id !== userId && (
                 <SafetyMenu
                   targetId={l.user_id}
