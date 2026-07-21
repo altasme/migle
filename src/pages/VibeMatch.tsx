@@ -34,6 +34,12 @@ const MATCH_DEADLINE_SEC = 180
 // independently later.
 const WAITING_TIMEOUT_SEC = 180
 const REPORT_REASONS = ['Harassment', 'Underage', 'Spam', 'Inappropriate content', 'Other']
+const WAITING_MESSAGES = [
+  'Looking for someone…',
+  'Scanning the Mingleverse…',
+  'Matching your vibe…',
+  'Almost there…',
+]
 
 function formatCountdown(secondsLeft: number) {
   const s = Math.max(0, secondsLeft)
@@ -69,6 +75,8 @@ export function VibeMatch() {
   const [voiceError, setVoiceError] = useState<string | null>(null)
   const [isMuted, setIsMuted] = useState(false)
   const [voiceMinglesLeft, setVoiceMinglesLeft] = useState<number | null>(null)
+  const [waitingMsgIndex, setWaitingMsgIndex] = useState(0)
+  const [waitingElapsed, setWaitingElapsed] = useState(0)
   const chatEndRef = useRef<HTMLDivElement | null>(null)
   const audioContainerRef = useRef<HTMLDivElement | null>(null)
   const livekitRoomRef = useRef<Room | null>(null)
@@ -206,6 +214,25 @@ export function VibeMatch() {
     }, WAITING_TIMEOUT_SEC * 1000)
     return () => clearTimeout(id)
   }, [phase, userId])
+
+  // Cosmetic only: cycle the status line and tick a "how long we've been
+  // searching" counter so the waiting screen reads as actively searching
+  // rather than a frozen spinner.
+  useEffect(() => {
+    if (phase !== 'waiting') {
+      setWaitingMsgIndex(0)
+      setWaitingElapsed(0)
+      return
+    }
+    const msgId = setInterval(() => {
+      setWaitingMsgIndex((i) => (i + 1) % WAITING_MESSAGES.length)
+    }, 3000)
+    const elapsedId = setInterval(() => setWaitingElapsed((s) => s + 1), 1000)
+    return () => {
+      clearInterval(msgId)
+      clearInterval(elapsedId)
+    }
+  }, [phase])
 
   // While matched, watch for the partner ending the session (Next, block,
   // leaving) and keep our copy of both like flags fresh.
@@ -477,13 +504,29 @@ export function VibeMatch() {
           ? "Time's up!"
           : phase === 'no-match'
             ? "No one's available right now"
-            : 'Looking for someone…'
+            : WAITING_MESSAGES[waitingMsgIndex]
     return (
       <div className="mx-auto flex min-h-svh w-full max-w-sm flex-col items-center justify-center gap-4 p-6 text-center">
         {(phase === 'waiting' || phase === 'partner-left') && (
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-zinc-700 border-t-purple-500" />
+          <div className="relative flex h-28 w-28 items-center justify-center">
+            <span className="radar-ring absolute inset-0 rounded-full border-2 border-purple-500/50" />
+            <span
+              className="radar-ring absolute inset-0 rounded-full border-2 border-purple-500/50"
+              style={{ animationDelay: '0.7s' }}
+            />
+            <span
+              className="radar-ring absolute inset-0 rounded-full border-2 border-purple-500/50"
+              style={{ animationDelay: '1.4s' }}
+            />
+            <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-purple-600 to-pink-600 text-2xl shadow-lg shadow-purple-950/40">
+              ✨
+            </span>
+          </div>
         )}
         <p className="text-white">{copy}</p>
+        {phase === 'waiting' && (
+          <p className="text-xs text-zinc-500">Searching for {formatCountdown(waitingElapsed)}</p>
+        )}
         {phase === 'time-up' ? (
           <div className="flex flex-col items-center gap-3">
             <p className="text-sm text-zinc-400">
