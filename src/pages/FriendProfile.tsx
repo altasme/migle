@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { AvatarImage } from '../components/AvatarImage'
 import { getFriendCount, getFriendIds } from '../lib/friends'
+import { emojiFor, type PromptAnswer } from '../lib/tags'
 
 type TargetProfile = {
   id: string
@@ -11,6 +12,8 @@ type TargetProfile = {
   equipped: Record<string, string>
   bio: string | null
   interests: string[]
+  personality_traits: string[]
+  prompt_answers: PromptAnswer[]
 }
 
 // Friends-only, never a public profile browser (CLAUDE.md explicitly
@@ -35,7 +38,7 @@ export function FriendProfile() {
       const [{ data }, count] = await Promise.all([
         supabase
           .from('profiles')
-          .select('id, username, equipped, bio, interests')
+          .select('id, username, equipped, bio, interests, personality_traits, prompt_answers')
           .eq('id', targetId)
           .maybeSingle(),
         getFriendCount(targetId),
@@ -83,19 +86,49 @@ export function FriendProfile() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+      <div className="flex flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
         <p className="text-sm text-zinc-300">
           {target.bio || <span className="text-zinc-600">No bio yet.</span>}
         </p>
         {target.interests.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {target.interests.map((i) => (
-              <span
-                key={i}
-                className="rounded-full border border-purple-500 bg-purple-600 px-3 py-1 text-xs text-white"
-              >
-                {i}
-              </span>
+          <div>
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-600">Interests</p>
+            <div className="flex flex-wrap gap-2">
+              {target.interests.map((i) => (
+                <span
+                  key={i}
+                  className="flex items-center gap-1 rounded-full border border-purple-500 bg-purple-600 px-3 py-1 text-xs text-white"
+                >
+                  <span>{emojiFor(i)}</span>
+                  {i}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        {target.personality_traits.length > 0 && (
+          <div>
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-600">Personality</p>
+            <div className="flex flex-wrap gap-2">
+              {target.personality_traits.map((p) => (
+                <span
+                  key={p}
+                  className="flex items-center gap-1 rounded-full border border-pink-500 bg-pink-600 px-3 py-1 text-xs text-white"
+                >
+                  <span>{emojiFor(p)}</span>
+                  {p}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        {target.prompt_answers.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {target.prompt_answers.map((p) => (
+              <div key={p.question} className="rounded-lg border border-purple-800/40 bg-purple-950/20 p-2.5">
+                <p className="text-[11px] font-medium text-purple-300">{p.question}</p>
+                <p className="mt-0.5 text-sm text-zinc-200">{p.answer}</p>
+              </div>
             ))}
           </div>
         )}

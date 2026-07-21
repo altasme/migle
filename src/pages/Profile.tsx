@@ -5,7 +5,17 @@ import { useAuthStore } from '../store/authStore'
 import { AvatarImage } from '../components/AvatarImage'
 import { getFriendCount } from '../lib/friends'
 import { ECONOMY_ENABLED } from '../lib/featureFlags'
-import { INTEREST_OPTIONS } from '../lib/tags'
+import {
+  INTEREST_OPTIONS,
+  MAX_INTERESTS,
+  PERSONALITY_OPTIONS,
+  MAX_PERSONALITY,
+  PROMPT_OPTIONS,
+  PROMPT_COUNT,
+  PROMPT_ANSWER_MAX,
+  emojiFor,
+  type PromptAnswer,
+} from '../lib/tags'
 
 const BIO_MAX = 255
 
@@ -15,18 +25,31 @@ type ActiveRelationship = {
   streak_days: number
 }
 
-function InterestChip({ label, selected, onClick }: { label: string; selected: boolean; onClick?: () => void }) {
+function InterestChip({
+  label,
+  emoji,
+  selected,
+  dimmed,
+  onClick,
+}: {
+  label: string
+  emoji?: string
+  selected: boolean
+  dimmed?: boolean
+  onClick?: () => void
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={!onClick}
-      className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+      className={`flex items-center gap-1 rounded-full border px-3 py-1 text-xs transition-colors ${
         selected
           ? 'border-purple-500 bg-purple-600 text-white'
           : 'border-zinc-700 bg-zinc-900 text-zinc-400'
-      } ${onClick ? '' : 'disabled:opacity-100'}`}
+      } ${onClick ? '' : 'disabled:opacity-100'} ${dimmed ? 'opacity-30' : ''}`}
     >
+      {emoji && <span>{emoji}</span>}
       {label}
     </button>
   )
@@ -42,6 +65,9 @@ export function Profile() {
   const [editing, setEditing] = useState(false)
   const [bioInput, setBioInput] = useState('')
   const [interestsInput, setInterestsInput] = useState<string[]>([])
+  const [personalityInput, setPersonalityInput] = useState<string[]>([])
+  const [promptsInput, setPromptsInput] = useState<string[]>([])
+  const [promptAnswersInput, setPromptAnswersInput] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -53,20 +79,46 @@ export function Profile() {
   function startEditing() {
     setBioInput(profile?.bio ?? '')
     setInterestsInput(profile?.interests ?? [])
+    setPersonalityInput(profile?.personality_traits ?? [])
+    const existing = profile?.prompt_answers ?? []
+    setPromptsInput(existing.map((p) => p.question))
+    setPromptAnswersInput(Object.fromEntries(existing.map((p) => [p.question, p.answer])))
     setEditing(true)
   }
 
   function toggleInterest(value: string) {
-    setInterestsInput((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]))
+    setInterestsInput((prev) =>
+      prev.includes(value) ? prev.filter((v) => v !== value) : prev.length < MAX_INTERESTS ? [...prev, value] : prev,
+    )
+  }
+
+  function togglePersonality(value: string) {
+    setPersonalityInput((prev) =>
+      prev.includes(value) ? prev.filter((v) => v !== value) : prev.length < MAX_PERSONALITY ? [...prev, value] : prev,
+    )
+  }
+
+  function togglePrompt(value: string) {
+    setPromptsInput((prev) =>
+      prev.includes(value) ? prev.filter((v) => v !== value) : prev.length < PROMPT_COUNT ? [...prev, value] : prev,
+    )
   }
 
   async function saveProfile() {
     const uid = session?.user.id
     if (!uid) return
     setSaving(true)
+    const promptAnswers: PromptAnswer[] = promptsInput
+      .map((q) => ({ question: q, answer: (promptAnswersInput[q] ?? '').trim() }))
+      .filter((p) => p.answer.length > 0)
     await supabase
       .from('profiles')
-      .update({ bio: bioInput.trim() || null, interests: interestsInput })
+      .update({
+        bio: bioInput.trim() || null,
+        interests: interestsInput,
+        personality_traits: personalityInput,
+        prompt_answers: promptAnswers,
+      })
       .eq('id', uid)
     await refreshProfile()
     setSaving(false)
@@ -144,16 +196,74 @@ export function Profile() {
             </p>
           </div>
           <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Interests</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              Interests ({interestsInput.length}/{MAX_INTERESTS})
+            </p>
             <div className="flex flex-wrap gap-2">
               {INTEREST_OPTIONS.map((opt) => (
                 <InterestChip
                   key={opt}
                   label={opt}
+                  emoji={emojiFor(opt)}
                   selected={interestsInput.includes(opt)}
+                  dimmed={!interestsInput.includes(opt) && interestsInput.length >= MAX_INTERESTS}
                   onClick={() => toggleInterest(opt)}
                 />
               ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              Personality ({personalityInput.length}/{MAX_PERSONALITY})
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {PERSONALITY_OPTIONS.map((opt) => (
+                <InterestChip
+                  key={opt}
+                  label={opt}
+                  emoji={emojiFor(opt)}
+                  selected={personalityInput.includes(opt)}
+                  dimmed={!personalityInput.includes(opt) && personalityInput.length >= MAX_PERSONALITY}
+                  onClick={() => togglePersonality(opt)}
+                />
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              Question cards ({promptsInput.length}/{PROMPT_COUNT})
+            </p>
+            <div className="flex flex-col gap-2">
+              {PROMPT_OPTIONS.map((q) => {
+                const isChosen = promptsInput.includes(q)
+                return (
+                  <div
+                    key={q}
+                    className={`rounded-lg border p-2.5 transition-colors ${
+                      isChosen ? 'border-purple-500 bg-purple-950/30' : 'border-zinc-800'
+                    }`}
+                  >
+                    <button
+                      onClick={() => togglePrompt(q)}
+                      disabled={!isChosen && promptsInput.length >= PROMPT_COUNT}
+                      className="flex w-full items-center justify-between text-left text-xs font-medium text-zinc-200 disabled:opacity-30"
+                    >
+                      {q}
+                      <span className={isChosen ? 'text-purple-400' : 'text-zinc-600'}>{isChosen ? '✓' : '+'}</span>
+                    </button>
+                    {isChosen && (
+                      <input
+                        type="text"
+                        maxLength={PROMPT_ANSWER_MAX}
+                        value={promptAnswersInput[q] ?? ''}
+                        onChange={(e) => setPromptAnswersInput((prev) => ({ ...prev, [q]: e.target.value }))}
+                        placeholder="Your answer…"
+                        className="mt-2 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
+                      />
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
           <div className="flex gap-2">
@@ -174,19 +284,42 @@ export function Profile() {
           </div>
         </div>
       ) : (
-        <div className="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+        <div className="flex flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
           <p className="text-sm text-zinc-300">
             {profile?.bio || <span className="text-zinc-600">No bio yet.</span>}
           </p>
           {profile && profile.interests.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {profile.interests.map((i) => (
-                <InterestChip key={i} label={i} selected />
+            <div>
+              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-600">Interests</p>
+              <div className="flex flex-wrap gap-2">
+                {profile.interests.map((i) => (
+                  <InterestChip key={i} label={i} emoji={emojiFor(i)} selected />
+                ))}
+              </div>
+            </div>
+          )}
+          {profile && profile.personality_traits.length > 0 && (
+            <div>
+              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-600">Personality</p>
+              <div className="flex flex-wrap gap-2">
+                {profile.personality_traits.map((p) => (
+                  <InterestChip key={p} label={p} emoji={emojiFor(p)} selected />
+                ))}
+              </div>
+            </div>
+          )}
+          {profile && profile.prompt_answers.length > 0 && (
+            <div className="flex flex-col gap-2">
+              {profile.prompt_answers.map((p) => (
+                <div key={p.question} className="rounded-lg border border-purple-800/40 bg-purple-950/20 p-2.5">
+                  <p className="text-[11px] font-medium text-purple-300">{p.question}</p>
+                  <p className="mt-0.5 text-sm text-zinc-200">{p.answer}</p>
+                </div>
               ))}
             </div>
           )}
           <button onClick={startEditing} className="self-start text-xs font-medium text-purple-400 hover:underline">
-            Edit bio & interests
+            Edit profile
           </button>
         </div>
       )}
