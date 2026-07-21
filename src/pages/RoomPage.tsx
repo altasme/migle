@@ -132,7 +132,7 @@ export function RoomPage() {
   )
   const [voiceError, setVoiceError] = useState<string | null>(null)
   const [seatError, setSeatError] = useState<string | null>(null)
-  const [passMicError, setPassMicError] = useState<string | null>(null)
+  const [seatInvite, setSeatInvite] = useState<{ fromUsername: string } | null>(null)
 
   const [giftCatalog, setGiftCatalog] = useState<GiftCatalogItem[]>([])
   const [supporters, setSupporters] = useState<Supporter[]>([])
@@ -190,6 +190,8 @@ export function RoomPage() {
   const [myKaraokeResult, setMyKaraokeResult] = useState<KaraokeScoreResult | null>(null)
   const [karaokeLiveDetected, setKaraokeLiveDetected] = useState(false)
   const [karaokeSampleCount, setKaraokeSampleCount] = useState(0)
+  const [floatingReactions, setFloatingReactions] = useState<{ id: number; emoji: string; left: number }[]>([])
+  const floatingReactionIdRef = useRef(0)
 
   const livekitRoomRef = useRef<Room | null>(null)
   const audioContainerRef = useRef<HTMLDivElement | null>(null)
@@ -209,8 +211,6 @@ export function RoomPage() {
   const karaokeAccRef = useRef<KaraokeAccumulator | null>(null)
   const karaokeNeverMutedRef = useRef(true)
   const karaokeSampleIntervalRef = useRef<number | null>(null)
-  const prevMySeatRef = useRef<number | null | undefined>(undefined)
-  const selfInitiatedSeatChangeRef = useRef(false)
   const resumedWatchPartyRef = useRef(false)
   // The 'youtube' broadcast handler is set up once inside a long-lived
   // effect (deps: [roomId, userId, slug]) and closes over isOwner at that
@@ -461,6 +461,15 @@ export function RoomPage() {
           forTarget[p.emoji] = (forTarget[p.emoji] ?? 0) + 1
           return { ...prev, [p.targetUserId]: forTarget }
         })
+        spawnFloatingReaction(p.emoji)
+      })
+      // "Set as Singer": an invite, not a direct seat assignment - only the
+      // invited person's own client acts on it, and only they can accept
+      // (which then takes a seat through the normal self-service path).
+      .on('broadcast', { event: 'seat_invite' }, ({ payload }) => {
+        const p = payload as { targetUserId: string; fromUsername: string }
+        if (p.targetUserId !== userId) return
+        setSeatInvite({ fromUsername: p.fromUsername })
       })
       .subscribe((status, err) => {
         console.log('[realtime] channel status:', status, err ?? '')
@@ -531,22 +540,6 @@ export function RoomPage() {
     })()
   }, [room])
 
-  // Catch a seat assigned to us by someone else (owner_pass_mic) - self-
-  // service takeSeat/leaveSeat already reconnect voice themselves and set
-  // selfInitiatedSeatChangeRef so this effect skips those, avoiding a
-  // redundant double-reconnect for the same change.
-  useEffect(() => {
-    if (selfInitiatedSeatChangeRef.current) {
-      selfInitiatedSeatChangeRef.current = false
-      prevMySeatRef.current = mySeat
-      return
-    }
-    if (mySeat !== null && prevMySeatRef.current === null && slug) {
-      connectVoice(slug)
-    }
-    prevMySeatRef.current = mySeat
-  }, [mySeat, slug])
-
   // Fun Karaoke Scoring: while I'm seated during a Karaoke Mode session,
   // sample my own LiveKit mic level every 200ms against my own player's
   // song position. Self-reported per singer - see karaokeScore.ts for why.
@@ -605,7 +598,6 @@ export function RoomPage() {
       return
     }
     // Don't wait on the realtime round-trip for our own action — refresh now.
-    selfInitiatedSeatChangeRef.current = true
     await loadMembers(roomId)
     await connectVoice(slug)
   }
@@ -617,20 +609,39 @@ export function RoomPage() {
       .update({ seat_index: null, is_muted: false })
       .eq('room_id', roomId)
       .eq('user_id', userId)
-    selfInitiatedSeatChangeRef.current = true
     await loadMembers(roomId)
     await connectVoice(slug)
   }
 
-  async function passMic(targetUserId: string) {
-    if (!roomId) return
-    setPassMicError(null)
-    const { error } = await supabase.rpc('owner_pass_mic', { p_room: roomId, p_user: targetUserId })
-    if (error) {
-      setPassMicError(error.message)
+  function setAsSinger(targetUserId: string) {
+    const fromUsername = me?.username ?? 'Someone'
+    channelRef.current?.send({
+      type: 'broadcast',
+      event: 'seat_invite',
+      payload: { targetUserId, fromUsername },
+    })
+  }
+
+  async function acceptSeatInvite() {
+    setSeatInvite(null)
+    if (!room || room === 'not-found') return
+    const takenSeats = new Set(membersRef.current.filter((m) => m.seat_index !== null).map((m) => m.seat_index))
+    let freeSeat = -1
+    for (let i = 0; i < room.max_seats; i++) {
+      if (!takenSeats.has(i)) {
+        freeSeat = i
+        break
+      }
+    }
+    if (freeSeat === -1) {
+      setSeatError('No free mic seats right now.')
       return
     }
-    await loadMembers(roomId)
+    await takeSeat(freeSeat)
+  }
+
+  function declineSeatInvite() {
+    setSeatInvite(null)
   }
 
   async function toggleMute() {
@@ -903,6 +914,16 @@ export function RoomPage() {
       forTarget[emoji] = (forTarget[emoji] ?? 0) + 1
       return { ...prev, [targetUserId]: forTarget }
     })
+    spawnFloatingReaction(emoji)
+  }
+
+  function spawnFloatingReaction(emoji: string) {
+    const id = ++floatingReactionIdRef.current
+    const left = 10 + Math.random() * 80
+    setFloatingReactions((prev) => [...prev, { id, emoji, left }])
+    setTimeout(() => {
+      setFloatingReactions((prev) => prev.filter((r) => r.id !== id))
+    }, 1800)
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1495,7 +1516,45 @@ export function RoomPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-4 gap-3">
+      {seatInvite && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70">
+          <div className="mx-4 w-full max-w-xs rounded-2xl bg-zinc-900 p-5 text-center">
+            <p className="text-white">
+              <span className="font-medium">{seatInvite.fromUsername}</span> invited you to grab a seat
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={acceptSeatInvite}
+                className="flex-1 rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white"
+              >
+                Accept
+              </button>
+              <button
+                onClick={declineSeatInvite}
+                className="flex-1 rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300"
+              >
+                Decline
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="relative overflow-hidden">
+        {floatingReactions.length > 0 && (
+          <div className="pointer-events-none absolute inset-0 z-10">
+            {floatingReactions.map((r) => (
+              <span
+                key={r.id}
+                className="floating-reaction absolute bottom-0 text-2xl"
+                style={{ left: `${r.left}%` }}
+              >
+                {r.emoji}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="grid grid-cols-4 gap-3">
         {Array.from({ length: room.max_seats }, (_, i) => {
           const occupant = members.find((m) => m.seat_index === i)
           const isMe = occupant?.user_id === userId
@@ -1547,12 +1606,12 @@ export function RoomPage() {
                 {occupant?.is_muted ? ' 🔇' : ''}
               </span>
               {occupant && !isMe && watchPartyMode === 'karaoke' && youtubeVideoId && (
-                <div className="flex flex-wrap justify-center gap-0.5">
+                <div className="flex flex-wrap justify-center gap-1">
                   {KARAOKE_REACTION_EMOJIS.map((emoji) => (
                     <button
                       key={emoji}
                       onClick={() => sendKaraokeReaction(occupant.user_id, emoji)}
-                      className="rounded-full px-0.5 text-xs leading-none hover:scale-125"
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-lg leading-none transition-transform active:scale-150"
                       aria-label={`React with ${emoji}`}
                     >
                       {emoji}
@@ -1563,6 +1622,7 @@ export function RoomPage() {
             </div>
           )
         })}
+        </div>
       </div>
 
       {mySeat !== null && (
@@ -1591,8 +1651,6 @@ export function RoomPage() {
       )}
       {seatError && <p className="text-center text-sm text-red-400">{seatError}</p>}
 
-      {passMicError && <p className="text-center text-xs text-red-400">{passMicError}</p>}
-
       {listeners.length > 0 && (
         <div className="flex flex-wrap justify-center gap-2 text-xs text-zinc-500">
           {listeners.map((l) => (
@@ -1603,11 +1661,11 @@ export function RoomPage() {
               {l.username}
               {isOwner && l.user_id !== userId && watchPartyMode === 'karaoke' && youtubeVideoId && (
                 <button
-                  onClick={() => passMic(l.user_id)}
+                  onClick={() => setAsSinger(l.user_id)}
                   className="rounded-full bg-purple-900/60 px-1.5 py-0.5 text-xs text-purple-300"
-                  title="Give this person the mic so they can sing and get scored"
+                  title="Invite this person to grab a seat so they can sing and get scored"
                 >
-                  🎤 Pass mic
+                  🎤 Set as Singer
                 </button>
               )}
               {l.user_id !== userId && (
