@@ -26,6 +26,8 @@ export function HangoutPanel() {
   const [invitingId, setInvitingId] = useState<string | null>(null)
   const [showInvite, setShowInvite] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [nameInput, setNameInput] = useState('')
+  const [topicInput, setTopicInput] = useState('')
 
   useEffect(() => {
     if (!userId) return
@@ -49,7 +51,7 @@ export function HangoutPanel() {
     setError(null)
     setCreating(true)
     try {
-      const room = await createHangout(userId, username)
+      const room = await createHangout(userId, username, nameInput, topicInput)
       setMyRoom(room)
     } catch (err) {
       const e = err as { code?: string; message?: string }
@@ -90,18 +92,37 @@ export function HangoutPanel() {
       {error && <p className="mb-2 text-sm text-red-400">{error}</p>}
 
       {!myRoom ? (
-        <button
-          onClick={handleCreate}
-          disabled={creating}
-          className="rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-        >
-          {creating ? 'Starting…' : 'Start a hangout'}
-        </button>
+        <div className="flex flex-col gap-2">
+          <input
+            type="text"
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+            placeholder={username ? `${username}'s Hangout` : 'Room name'}
+            maxLength={40}
+            className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
+          />
+          <input
+            type="text"
+            value={topicInput}
+            onChange={(e) => setTopicInput(e.target.value)}
+            placeholder="Topic (optional)"
+            maxLength={60}
+            className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
+          />
+          <button
+            onClick={handleCreate}
+            disabled={creating}
+            className="rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {creating ? 'Starting…' : 'Start a hangout'}
+          </button>
+        </div>
       ) : (
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div>
               <p className="font-medium text-white">{myRoom.name}</p>
+              {myRoom.topic && <p className="text-xs text-zinc-400">{myRoom.topic}</p>}
               <p className="text-xs text-zinc-500">Invite-only, friends only</p>
             </div>
             <div className="flex gap-2">

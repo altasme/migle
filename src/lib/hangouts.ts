@@ -1,23 +1,41 @@
 import { supabase } from './supabase'
 import { slugify } from './slug'
 
-export type MyRoom = { id: string; slug: string; name: string }
+export type MyRoom = { id: string; slug: string; name: string; topic: string | null; theme: string }
 
-export async function createHangout(ownerId: string, ownerUsername: string): Promise<MyRoom> {
-  const slug = slugify(`${ownerUsername}-hangout`)
+export async function createHangout(
+  ownerId: string,
+  ownerUsername: string,
+  name?: string,
+  topic?: string,
+): Promise<MyRoom> {
+  const finalName = name?.trim() || `${ownerUsername}'s Hangout`
+  const slug = slugify(finalName)
   const { data, error } = await supabase
     .from('rooms')
-    .insert({ slug, name: `${ownerUsername}'s Hangout`, owner_id: ownerId })
-    .select('id, slug, name')
+    .insert({ slug, name: finalName, topic: topic?.trim() || null, owner_id: ownerId })
+    .select('id, slug, name, topic, theme')
     .single()
   if (error) throw error
   return data
 }
 
+export async function updateHangout(
+  roomId: string,
+  updates: { name?: string; topic?: string | null; theme?: string },
+) {
+  const payload: Record<string, string | null> = {}
+  if (updates.name !== undefined && updates.name.trim()) payload.name = updates.name.trim()
+  if (updates.topic !== undefined) payload.topic = updates.topic?.trim() || null
+  if (updates.theme !== undefined) payload.theme = updates.theme
+  const { error } = await supabase.from('rooms').update(payload).eq('id', roomId)
+  if (error) throw error
+}
+
 export async function getMyActiveRoom(userId: string): Promise<MyRoom | null> {
   const { data } = await supabase
     .from('rooms')
-    .select('id, slug, name')
+    .select('id, slug, name, topic, theme')
     .eq('owner_id', userId)
     .eq('is_active', true)
     .maybeSingle()
