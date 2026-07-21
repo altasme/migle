@@ -3,3 +3,18 @@
 body {
   margin: 0;
 }
+
+@keyframes float-up {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-140px) scale(1.5);
+    opacity: 0;
+  }
+}
+
+.floating-reaction {
+  animation: float-up 1.8s ease-out forwards;
+}
