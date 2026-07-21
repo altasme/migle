@@ -18,6 +18,18 @@ import {
   searchYouTubeVideos,
   type YouTubeSearchResult,
 } from '../lib/youtube'
+import {
+  createKaraokeAccumulator,
+  sampleKaraoke,
+  finalizeKaraokeScore,
+  computeKaraokeAchievements,
+  KARAOKE_SAMPLE_MS,
+  KARAOKE_ACTIVE_THRESHOLD,
+  KARAOKE_REACTION_EMOJIS,
+  type KaraokeAccumulator,
+  type KaraokeScoreResult,
+  type KaraokePerformer,
+} from '../lib/karaokeScore'
 
 type GiftCatalogItem = {
   id: string
@@ -156,6 +168,12 @@ export function RoomPage() {
   const [youtubeResults, setYoutubeResults] = useState<YouTubeSearchResult[]>([])
   const [youtubeSearching, setYoutubeSearching] = useState(false)
 
+  const [karaokeResults, setKaraokeResults] = useState<KaraokePerformer[]>([])
+  const [karaokeReactionCounts, setKaraokeReactionCounts] = useState<Record<string, Record<string, number>>>({})
+  const [myKaraokeResult, setMyKaraokeResult] = useState<KaraokeScoreResult | null>(null)
+  const [karaokeLiveDetected, setKaraokeLiveDetected] = useState(false)
+  const [karaokeSampleCount, setKaraokeSampleCount] = useState(0)
+
   const livekitRoomRef = useRef<Room | null>(null)
   const audioContainerRef = useRef<HTMLDivElement | null>(null)
   const membersRef = useRef<Member[]>([])
@@ -171,11 +189,17 @@ export function RoomPage() {
   const ytPlayerRef = useRef<any>(null)
   const ytContainerRef = useRef<HTMLDivElement | null>(null)
   const ytSyncIntervalRef = useRef<number | null>(null)
+  const karaokeAccRef = useRef<KaraokeAccumulator | null>(null)
+  const karaokeNeverMutedRef = useRef(true)
+  const karaokeSampleIntervalRef = useRef<number | null>(null)
   // The 'youtube' broadcast handler is set up once inside a long-lived
   // effect (deps: [roomId, userId, slug]) and closes over isOwner at that
   // moment - room/ownership loads asynchronously after, so a plain
   // variable would go stale. Same fix as membersRef elsewhere in this file.
   const isOwnerRef = useRef(false)
+  // Same staleness concern as isOwnerRef - read from the 'youtube_request_state'
+  // handler, which is registered once inside the long-lived effect.
+  const watchPartyModeRef = useRef<'karaoke' | 'together' | null>(null)
 
   useEffect(() => {
     membersRef.current = members
@@ -387,13 +411,15 @@ export function RoomPage() {
           setYoutubeVideoId(null)
           setWatchPartyMode(null)
           ytPlayerRef.current?.stopVideo?.()
+          finalizeMyKaraokeScore()
           return
         }
         if (p.action === 'load' && p.videoId) {
           setYoutubeVideoId(p.videoId)
           setWatchPartyMode(p.mode ?? null)
+          resetKaraokeSession()
           const player = await ensureYtPlayer(false)
-          player.loadVideoById(p.videoId)
+          player.loadVideoById({ videoId: p.videoId, startSeconds: p.time ?? 0 })
           return
         }
         if (p.action === 'sync' && p.time !== undefined) {
@@ -405,8 +431,45 @@ export function RoomPage() {
           else if (p.state === 2 && localState !== 2) player.pauseVideo()
         }
       })
+      .on('broadcast', { event: 'karaoke_score' }, ({ payload }) => {
+        const p = payload as KaraokePerformer
+        setKaraokeResults((prev) => [...prev.filter((r) => r.userId !== p.userId), p])
+      })
+      .on('broadcast', { event: 'karaoke_reaction' }, ({ payload }) => {
+        const p = payload as { targetUserId: string; emoji: string }
+        setKaraokeReactionCounts((prev) => {
+          const forTarget = { ...(prev[p.targetUserId] ?? {}) }
+          forTarget[p.emoji] = (forTarget[p.emoji] ?? 0) + 1
+          return { ...prev, [p.targetUserId]: forTarget }
+        })
+      })
+      // A client that just (re)joined has no idea whether a Watch Party is
+      // already in progress - broadcasts aren't replayed to late joiners.
+      // Every client asks once on subscribe; only the owner (source of
+      // truth) answers, with the current video + position so the newcomer
+      // catches up instead of seeing nothing.
+      .on('broadcast', { event: 'youtube_request_state' }, () => {
+        if (!isOwnerRef.current) return
+        const player = ytPlayerRef.current
+        if (!player || typeof player.getVideoData !== 'function') return
+        const videoId = player.getVideoData()?.video_id
+        if (!videoId) return
+        channelRef.current?.send({
+          type: 'broadcast',
+          event: 'youtube',
+          payload: {
+            action: 'load',
+            videoId,
+            mode: watchPartyModeRef.current,
+            time: player.getCurrentTime?.() ?? 0,
+          },
+        })
+      })
       .subscribe((status, err) => {
         console.log('[realtime] channel status:', status, err ?? '')
+        if (status === 'SUBSCRIBED') {
+          channel.send({ type: 'broadcast', event: 'youtube_request_state', payload: {} })
+        }
       })
     channelRef.current = channel
 
@@ -451,6 +514,54 @@ export function RoomPage() {
   useEffect(() => {
     isOwnerRef.current = isOwner
   }, [isOwner])
+  useEffect(() => {
+    watchPartyModeRef.current = watchPartyMode
+  }, [watchPartyMode])
+
+  // Fun Karaoke Scoring: while I'm seated during a Karaoke Mode session,
+  // sample my own LiveKit mic level every 200ms against my own player's
+  // song position. Self-reported per singer - see karaokeScore.ts for why.
+  useEffect(() => {
+    const active = watchPartyMode === 'karaoke' && youtubeVideoId !== null && mySeat !== null
+    if (!active) {
+      setKaraokeLiveDetected(false)
+      return
+    }
+    if (!karaokeAccRef.current) {
+      karaokeAccRef.current = createKaraokeAccumulator()
+      karaokeNeverMutedRef.current = !myMuted
+      setKaraokeSampleCount(0)
+    }
+    const id = window.setInterval(() => {
+      const player = ytPlayerRef.current
+      const lkRoom = livekitRoomRef.current
+      if (!player || !lkRoom || typeof player.getDuration !== 'function') {
+        setKaraokeLiveDetected(false)
+        return
+      }
+      const duration = player.getDuration()
+      if (!duration) return
+      const ratio = Math.max(0, Math.min(1, player.getCurrentTime() / duration))
+      const level = lkRoom.localParticipant.audioLevel ?? 0
+      if (karaokeAccRef.current) {
+        sampleKaraoke(karaokeAccRef.current, level, ratio)
+        setKaraokeSampleCount(karaokeAccRef.current.samples)
+      }
+      setKaraokeLiveDetected(level > KARAOKE_ACTIVE_THRESHOLD)
+    }, KARAOKE_SAMPLE_MS)
+    karaokeSampleIntervalRef.current = id
+    return () => {
+      clearInterval(id)
+      if (karaokeSampleIntervalRef.current === id) karaokeSampleIntervalRef.current = null
+      setKaraokeLiveDetected(false)
+    }
+  }, [watchPartyMode, youtubeVideoId, mySeat])
+
+  useEffect(() => {
+    if (watchPartyMode === 'karaoke' && youtubeVideoId && mySeat !== null && myMuted) {
+      karaokeNeverMutedRef.current = false
+    }
+  }, [myMuted, watchPartyMode, youtubeVideoId, mySeat])
 
   async function takeSeat(index: number) {
     if (!roomId || !userId || !slug) return
@@ -713,6 +824,45 @@ export function RoomPage() {
     channelRef.current?.send({ type: 'broadcast', event: 'music', payload: { action: 'stop' } })
   }
 
+  function resetKaraokeSession() {
+    karaokeAccRef.current = null
+    karaokeNeverMutedRef.current = true
+    setKaraokeResults([])
+    setKaraokeReactionCounts({})
+    setMyKaraokeResult(null)
+    setKaraokeSampleCount(0)
+    setKaraokeLiveDetected(false)
+  }
+
+  // Reads membersRef/userId at call time rather than closing over `me` -
+  // this can be invoked from a long-lived player/broadcast callback whose
+  // closure was created before the current render.
+  function finalizeMyKaraokeScore() {
+    const acc = karaokeAccRef.current
+    karaokeAccRef.current = null
+    if (karaokeSampleIntervalRef.current) {
+      clearInterval(karaokeSampleIntervalRef.current)
+      karaokeSampleIntervalRef.current = null
+    }
+    if (!acc || !userId) return
+    const result = finalizeKaraokeScore(acc, karaokeNeverMutedRef.current)
+    if (!result) return
+    const username = membersRef.current.find((m) => m.user_id === userId)?.username ?? '?'
+    const performer: KaraokePerformer = { userId, username, score: result }
+    setMyKaraokeResult(result)
+    setKaraokeResults((prev) => [...prev.filter((r) => r.userId !== userId), performer])
+    channelRef.current?.send({ type: 'broadcast', event: 'karaoke_score', payload: performer })
+  }
+
+  function sendKaraokeReaction(targetUserId: string, emoji: string) {
+    channelRef.current?.send({ type: 'broadcast', event: 'karaoke_reaction', payload: { targetUserId, emoji } })
+    setKaraokeReactionCounts((prev) => {
+      const forTarget = { ...(prev[targetUserId] ?? {}) }
+      forTarget[emoji] = (forTarget[emoji] ?? 0) + 1
+      return { ...prev, [targetUserId]: forTarget }
+    })
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function ensureYtPlayer(controllable: boolean): Promise<any> {
     if (ytPlayerRef.current) return ytPlayerRef.current
@@ -727,6 +877,17 @@ export function RoomPage() {
           onReady: () => {
             ytPlayerRef.current = player
             resolve(player)
+          },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          onStateChange: (e: any) => {
+            // Natural end of video (state 0): finalize my own score, and
+            // if I'm the owner, cascade a stop to the room. isOwnerRef is
+            // read (not a plain variable) because this callback is
+            // registered once, when the player is first created.
+            if (e.data === 0) {
+              finalizeMyKaraokeScore()
+              if (isOwnerRef.current) handleStopYoutube()
+            }
           },
         },
       })
@@ -752,6 +913,7 @@ export function RoomPage() {
     setYoutubeModalOpen(false)
     setYoutubeVideoId(videoId)
     setWatchPartyMode(mode)
+    resetKaraokeSession()
     const player = await ensureYtPlayer(true)
     player.loadVideoById(videoId)
     channelRef.current?.send({ type: 'broadcast', event: 'youtube', payload: { action: 'load', videoId, mode } })
@@ -781,7 +943,7 @@ export function RoomPage() {
   }
 
   function handleStopYoutube() {
-    if (!isOwner) return
+    if (!isOwnerRef.current) return
     if (ytSyncIntervalRef.current) {
       clearInterval(ytSyncIntervalRef.current)
       ytSyncIntervalRef.current = null
@@ -790,6 +952,7 @@ export function RoomPage() {
     setWatchPartyMode(null)
     ytPlayerRef.current?.stopVideo?.()
     channelRef.current?.send({ type: 'broadcast', event: 'youtube', payload: { action: 'stop' } })
+    finalizeMyKaraokeScore()
   }
 
   function toggleMusicPause() {
@@ -891,6 +1054,19 @@ export function RoomPage() {
   }
 
   const listeners = members.filter((m) => m.seat_index === null)
+  const karaokeAchievements = computeKaraokeAchievements(karaokeResults, karaokeReactionCounts)
+  const KARAOKE_ACHIEVEMENT_LABELS: Record<string, string> = {
+    crowd_favorite: '🔥 Crowd Favorite',
+    comedy_award: '😂 Comedy Award',
+    no_stage_fright: '🎤 No Stage Fright',
+  }
+  function karaokeBadgesFor(userId: string, neverMuted: boolean): string[] {
+    const badges: string[] = []
+    if (karaokeAchievements.crowdFavoriteIds.has(userId)) badges.push('crowd_favorite')
+    if (karaokeAchievements.comedyAwardIds.has(userId)) badges.push('comedy_award')
+    if (neverMuted) badges.push('no_stage_fright')
+    return badges
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col gap-4 p-4">
@@ -1157,7 +1333,10 @@ export function RoomPage() {
             {watchPartyMode === 'karaoke' ? '🎤 Karaoke Mode' : '🎬 Watch Together'}
           </p>
         )}
-        <div ref={ytContainerRef} className="overflow-hidden rounded-lg" />
+        <div
+          ref={ytContainerRef}
+          className={`overflow-hidden rounded-lg ${isOwner ? '' : 'pointer-events-none'}`}
+        />
         {isOwner && (
           <button
             onClick={handleStopYoutube}
@@ -1167,6 +1346,69 @@ export function RoomPage() {
           </button>
         )}
       </div>
+
+      {!youtubeVideoId && karaokeResults.length > 0 && (
+        <div className="rounded-lg border border-purple-800/50 bg-purple-950/30 p-3">
+          <p className="mb-2 text-sm font-medium text-white">🎤 Karaoke Results</p>
+          <div className="flex flex-col gap-2">
+            {karaokeResults.map((r) => (
+              <div key={r.userId} className="flex flex-col gap-1 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-200">{r.username}</span>
+                  <span className="text-amber-400">
+                    {'⭐'.repeat(r.score.stars)}
+                    <span className="text-zinc-600">{'☆'.repeat(5 - r.score.stars)}</span>
+                    <span className="ml-1 text-xs text-zinc-500">{r.score.finalScore}</span>
+                  </span>
+                </div>
+                {karaokeBadgesFor(r.userId, r.score.neverMuted).length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {karaokeBadgesFor(r.userId, r.score.neverMuted).map((b) => (
+                      <span key={b} className="rounded-full bg-purple-900/60 px-2 py-0.5 text-xs text-purple-300">
+                        {KARAOKE_ACHIEVEMENT_LABELS[b]}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {myKaraokeResult && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/70">
+          <div className="mx-4 w-full max-w-xs rounded-2xl bg-zinc-900 p-5 text-center">
+            <p className="text-lg font-semibold text-white">🎤 Great Performance!</p>
+            <p className="mt-2 text-2xl text-amber-400">
+              {'⭐'.repeat(myKaraokeResult.stars)}
+              <span className="text-zinc-700">{'☆'.repeat(5 - myKaraokeResult.stars)}</span>
+            </p>
+            <div className="mt-4 space-y-1 text-left text-sm text-zinc-300">
+              <p>Timing: {myKaraokeResult.timing}%</p>
+              <p>Participation: {myKaraokeResult.participation}%</p>
+              <p>Energy: {myKaraokeResult.energy}%</p>
+              <p>Consistency: {myKaraokeResult.consistency}%</p>
+            </div>
+            <p className="mt-3 text-lg font-bold text-purple-400">Final Score: {myKaraokeResult.finalScore}</p>
+            {userId && karaokeBadgesFor(userId, myKaraokeResult.neverMuted).length > 0 && (
+              <div className="mt-3 flex flex-wrap justify-center gap-1">
+                {karaokeBadgesFor(userId, myKaraokeResult.neverMuted).map((b) => (
+                  <span key={b} className="rounded-full bg-purple-950/60 px-2 py-1 text-xs text-purple-300">
+                    {KARAOKE_ACHIEVEMENT_LABELS[b]}
+                  </span>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={() => setMyKaraokeResult(null)}
+              className="mt-4 w-full rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white"
+            >
+              Nice!
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-4 gap-3">
         {Array.from({ length: room.max_seats }, (_, i) => {
@@ -1219,6 +1461,20 @@ export function RoomPage() {
                 {occupant ? occupant.username : 'empty'}
                 {occupant?.is_muted ? ' 🔇' : ''}
               </span>
+              {occupant && !isMe && watchPartyMode === 'karaoke' && youtubeVideoId && (
+                <div className="flex flex-wrap justify-center gap-0.5">
+                  {KARAOKE_REACTION_EMOJIS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      onClick={() => sendKaraokeReaction(occupant.user_id, emoji)}
+                      className="rounded-full px-0.5 text-xs leading-none hover:scale-125"
+                      aria-label={`React with ${emoji}`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )
         })}
@@ -1239,6 +1495,14 @@ export function RoomPage() {
             Leave seat
           </button>
         </div>
+      )}
+      {mySeat !== null && watchPartyMode === 'karaoke' && youtubeVideoId && (
+        <p
+          className={`text-center text-xs ${karaokeLiveDetected ? 'text-green-400' : 'text-zinc-600'}`}
+        >
+          🎤 {karaokeLiveDetected ? 'Singing detected!' : 'Listening for your voice…'}
+          <span className="text-zinc-700"> ({karaokeSampleCount} samples)</span>
+        </p>
       )}
       {seatError && <p className="text-center text-sm text-red-400">{seatError}</p>}
 
