@@ -22,13 +22,14 @@ export async function createHangout(
 
 export async function updateHangout(
   roomId: string,
-  updates: { name?: string; topic?: string | null; theme?: string },
+  updates: { name: string; topic: string | null; theme: string },
 ) {
-  const payload: Record<string, string | null> = {}
-  if (updates.name !== undefined && updates.name.trim()) payload.name = updates.name.trim()
-  if (updates.topic !== undefined) payload.topic = updates.topic?.trim() || null
-  if (updates.theme !== undefined) payload.theme = updates.theme
-  const { error } = await supabase.from('rooms').update(payload).eq('id', roomId)
+  const { error } = await supabase.rpc('update_room_settings', {
+    p_room: roomId,
+    p_name: updates.name,
+    p_topic: updates.topic,
+    p_theme: updates.theme,
+  })
   if (error) throw error
 }
 
@@ -50,6 +51,12 @@ export async function inviteFriendToRoom(roomId: string, friendId: string) {
 export async function getInvitedFriendIds(roomId: string): Promise<Set<string>> {
   const { data } = await supabase.from('room_invites').select('invited_user_id').eq('room_id', roomId)
   return new Set((data ?? []).map((r) => r.invited_user_id as string))
+}
+
+// Invites aren't a persistent log - once seen/acted on, clear it so it
+// doesn't keep nagging "X invited you to Y" forever.
+export async function dismissHangoutInvite(roomId: string, userId: string) {
+  await supabase.from('room_invites').delete().eq('room_id', roomId).eq('invited_user_id', userId)
 }
 
 export type HangoutInvite = {

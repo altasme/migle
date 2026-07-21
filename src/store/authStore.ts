@@ -11,6 +11,7 @@ export type Profile = {
   interests: string[]
   looking_for: string[]
   onboarded: boolean
+  bio: string | null
 }
 
 type AuthState = {
@@ -52,7 +53,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     const { data } = await supabase
       .from('profiles')
-      .select('id, username, birthdate, equipped, is_admin, interests, looking_for, onboarded')
+      .select('id, username, birthdate, equipped, is_admin, interests, looking_for, onboarded, bio')
       .eq('id', userId)
       .maybeSingle()
     set({ profile: data })
