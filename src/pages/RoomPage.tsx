@@ -845,7 +845,7 @@ export function RoomPage() {
   // same as any other audio track - no changes needed on the listening
   // side either way.
   async function startPlayingSource(src: string, title: string, opts?: { crossOrigin?: boolean }) {
-    if (!roomId || !canModerate) return
+    if (!roomId || !canModerate || !me) return
 
     // Publishing anything requires a mic seat - canPublish is granted
     // server-side based on seat status (Rule 4), there's no separate
