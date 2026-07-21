@@ -248,15 +248,15 @@ export function RoomPage() {
       .select('user_id, seat_index, is_muted, profiles(username, equipped)')
       .eq('room_id', rid)
     const rows = (data ?? []) as unknown as RoomMemberRow[]
-    setMembers(
-      rows.map((r) => ({
-        user_id: r.user_id,
-        seat_index: r.seat_index,
-        is_muted: r.is_muted,
-        username: r.profiles?.username ?? '?',
-        equipped: r.profiles?.equipped ?? {},
-      })),
-    )
+    const mapped = rows.map((r) => ({
+      user_id: r.user_id,
+      seat_index: r.seat_index,
+      is_muted: r.is_muted,
+      username: r.profiles?.username ?? '?',
+      equipped: r.profiles?.equipped ?? {},
+    }))
+    setMembers(mapped)
+    return mapped
   }
 
   async function loadMessages(rid: string) {
@@ -513,6 +513,19 @@ export function RoomPage() {
   const mySeat = me?.seat_index ?? null
   const myMuted = me?.is_muted ?? false
 
+  // Lost our seat without calling leaveSeat ourselves - e.g. bumped by a
+  // Karaoke Mode singer handoff. Our LiveKit token still has publish
+  // granted from when we were seated (tokens aren't revoked live), so
+  // reconnect to pick one up without it. Harmlessly redundant with
+  // leaveSeat's own explicit reconnect for the self-service case.
+  const prevMySeatRef = useRef<number | null | undefined>(undefined)
+  useEffect(() => {
+    if (prevMySeatRef.current !== undefined && prevMySeatRef.current !== null && mySeat === null && slug) {
+      connectVoice(slug)
+    }
+    prevMySeatRef.current = mySeat
+  }, [mySeat, slug])
+
   const isOwner = room !== null && room !== 'not-found' && room.owner_id === userId
   useEffect(() => {
     isOwnerRef.current = isOwner
@@ -585,9 +598,11 @@ export function RoomPage() {
     }
   }, [myMuted, watchPartyMode, youtubeVideoId, mySeat])
 
-  async function takeSeat(index: number) {
+  // Shared tail: write my own seat, refresh the roster, reconnect voice so
+  // the LiveKit token reflects the new seat's publish permission. Both
+  // self-service takeSeat and an accepted "Set as Singer" invite land here.
+  async function assignMySeat(index: number) {
     if (!roomId || !userId || !slug) return
-    setSeatError(null)
     const { error } = await supabase
       .from('room_members')
       .update({ seat_index: index, is_muted: false })
@@ -600,6 +615,19 @@ export function RoomPage() {
     // Don't wait on the realtime round-trip for our own action — refresh now.
     await loadMembers(roomId)
     await connectVoice(slug)
+  }
+
+  async function takeSeat(index: number) {
+    setSeatError(null)
+    if (
+      watchPartyMode === 'karaoke' &&
+      youtubeVideoId &&
+      members.some((m) => m.seat_index !== null && m.user_id !== userId)
+    ) {
+      setSeatError('Only one person can sing at a time during Karaoke Mode.')
+      return
+    }
+    await assignMySeat(index)
   }
 
   async function leaveSeat() {
@@ -624,8 +652,27 @@ export function RoomPage() {
 
   async function acceptSeatInvite() {
     setSeatInvite(null)
-    if (!room || room === 'not-found') return
-    const takenSeats = new Set(membersRef.current.filter((m) => m.seat_index !== null).map((m) => m.seat_index))
+    setSeatError(null)
+    if (!room || room === 'not-found' || !roomId || !userId) return
+    const freshMembers = await loadMembers(roomId)
+    // Karaoke Mode: only one singer at a time - accepting an invite hands
+    // the mic over, so whoever currently holds a seat gets freed first.
+    const currentSinger =
+      watchPartyMode === 'karaoke' && youtubeVideoId
+        ? freshMembers.find((m) => m.seat_index !== null && m.user_id !== userId)
+        : undefined
+    if (currentSinger) {
+      await supabase
+        .from('room_members')
+        .update({ seat_index: null, is_muted: false })
+        .eq('room_id', roomId)
+        .eq('user_id', currentSinger.user_id)
+    }
+    const takenSeats = new Set(
+      freshMembers
+        .filter((m) => m.seat_index !== null && m.user_id !== currentSinger?.user_id)
+        .map((m) => m.seat_index),
+    )
     let freeSeat = -1
     for (let i = 0; i < room.max_seats; i++) {
       if (!takenSeats.has(i)) {
@@ -637,7 +684,7 @@ export function RoomPage() {
       setSeatError('No free mic seats right now.')
       return
     }
-    await takeSeat(freeSeat)
+    await assignMySeat(freeSeat)
   }
 
   function declineSeatInvite() {
@@ -1161,6 +1208,10 @@ export function RoomPage() {
 
   const listeners = members.filter((m) => m.seat_index === null)
   const karaokeAchievements = computeKaraokeAchievements(karaokeResults, karaokeReactionCounts)
+  // Karaoke Mode: only one singer at a time - empty seats are un-tappable
+  // once someone else already holds the mic.
+  const karaokeSeatLocked =
+    watchPartyMode === 'karaoke' && !!youtubeVideoId && members.some((m) => m.seat_index !== null && m.user_id !== userId)
   const KARAOKE_ACHIEVEMENT_LABELS: Record<string, string> = {
     crowd_favorite: '🔥 Crowd Favorite',
     comedy_award: '😂 Comedy Award',
@@ -1563,8 +1614,9 @@ export function RoomPage() {
               <div className="relative">
                 <button
                   onClick={() => (occupant ? (isMe ? toggleMute() : undefined) : takeSeat(i))}
-                  disabled={!occupant && mySeat === i}
-                  className={`flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border-2 text-white ${
+                  disabled={(!occupant && mySeat === i) || (!occupant && karaokeSeatLocked)}
+                  title={!occupant && karaokeSeatLocked ? 'Only one person can sing at a time during Karaoke Mode' : undefined}
+                  className={`flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border-2 text-white disabled:cursor-not-allowed disabled:opacity-40 ${
                     occupant
                       ? isMe
                         ? 'border-purple-500 bg-purple-900'
