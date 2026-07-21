@@ -77,7 +77,10 @@ export function Chat() {
       {loading ? (
         <p className="text-sm text-zinc-500">Loading…</p>
       ) : threads.length === 0 ? (
-        <p className="text-sm text-zinc-500">No conversations yet.</p>
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/50 p-8 text-center">
+          <span className="text-3xl">💬</span>
+          <p className="text-sm text-zinc-500">No conversations yet.</p>
+        </div>
       ) : (
         <div className="flex flex-col gap-2">
           {threads.map((t) => {
@@ -86,7 +89,7 @@ export function Chat() {
               <button
                 key={t.id}
                 onClick={() => navigate(`/dm/${t.id}`)}
-                className="flex w-full items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-left hover:border-purple-600"
+                className="flex w-full items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-left transition-colors active:bg-zinc-800/60 hover:border-purple-600"
               >
                 <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-sm text-white">
                   <AvatarImage

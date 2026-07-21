@@ -65,13 +65,16 @@ export function BlockedUsers() {
       {loading ? (
         <p className="text-sm text-zinc-500">Loading…</p>
       ) : users.length === 0 ? (
-        <p className="text-sm text-zinc-500">You haven't blocked anyone.</p>
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/50 p-8 text-center">
+          <span className="text-3xl">🚫</span>
+          <p className="text-sm text-zinc-500">You haven't blocked anyone.</p>
+        </div>
       ) : (
         <div className="flex flex-col gap-2">
           {users.map((u) => (
             <div
               key={u.id}
-              className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2"
+              className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2"
             >
               <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-sm text-white">
                 <AvatarImage

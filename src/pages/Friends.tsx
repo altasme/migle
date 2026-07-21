@@ -46,15 +46,18 @@ export function Friends() {
       {loading ? (
         <p className="text-sm text-zinc-500">Loading…</p>
       ) : friends.length === 0 ? (
-        <p className="text-sm text-zinc-500">
-          No friends yet. Like each other in a Mingling match to become friends.
-        </p>
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/50 p-8 text-center">
+          <span className="text-3xl">🤝</span>
+          <p className="text-sm text-zinc-500">
+            No friends yet. Like each other in a Mingling match to become friends.
+          </p>
+        </div>
       ) : (
         <div className="flex flex-col gap-2">
           {friends.map((f) => (
             <div
               key={f.id}
-              className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900/50 p-3"
+              className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/50 p-3"
             >
               <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-white">
                 <AvatarImage
@@ -67,7 +70,7 @@ export function Friends() {
               <button
                 onClick={() => chat(f.id)}
                 disabled={openingId === f.id}
-                className="rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                className="rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white transition-transform active:scale-95 disabled:opacity-50"
               >
                 {openingId === f.id ? 'Opening…' : 'Chat'}
               </button>

@@ -115,7 +115,7 @@ export function Wardrobe() {
       </div>
 
       <div className="flex justify-center">
-        <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-2xl bg-zinc-900 text-3xl text-white">
+        <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-zinc-900 to-zinc-800 text-3xl text-white ring-1 ring-zinc-800">
           <AvatarImage
             equipped={equipped}
             fallbackLetter={profile?.username[0]?.toUpperCase() ?? '?'}
@@ -128,13 +128,13 @@ export function Wardrobe() {
       {error && <p className="text-center text-sm text-red-400">{error}</p>}
 
       <section>
-        <h2 className="mb-2 text-sm font-medium text-zinc-400">Style</h2>
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Style</h2>
         <div className="flex gap-2">
           {styles.map((style) => (
             <button
               key={style}
               onClick={() => setActiveStyle(style)}
-              className={`rounded-lg border-2 px-3 py-1.5 text-sm ${
+              className={`rounded-lg border-2 px-3 py-1.5 text-sm transition-colors ${
                 activeStyle === style
                   ? 'border-purple-500 text-white'
                   : 'border-zinc-800 text-zinc-400'
@@ -147,7 +147,7 @@ export function Wardrobe() {
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-medium text-zinc-400">Looks</h2>
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Looks</h2>
         <div className="flex flex-wrap gap-3">
           {variants.map((item) => {
             const isEquipped = equipped.body === item.id
@@ -157,7 +157,7 @@ export function Wardrobe() {
                 key={item.id}
                 onClick={() => selectItem(item)}
                 disabled={busy === item.id}
-                className={`flex flex-col items-center gap-1 rounded-lg border-2 p-2 disabled:opacity-50 ${
+                className={`flex flex-col items-center gap-1 rounded-lg border-2 p-2 transition-transform active:scale-95 disabled:opacity-50 ${
                   isEquipped ? 'border-purple-500' : 'border-zinc-800'
                 }`}
               >
