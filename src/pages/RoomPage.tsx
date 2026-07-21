@@ -93,6 +93,7 @@ type Member = {
   user_id: string
   seat_index: number | null
   is_muted: boolean
+  role: 'member' | 'roommate'
   username: string
   equipped: Record<string, string>
 }
@@ -109,6 +110,7 @@ type RoomMemberRow = {
   user_id: string
   seat_index: number | null
   is_muted: boolean
+  role: 'member' | 'roommate'
   profiles: { username: string; equipped: Record<string, string> } | null
 }
 
@@ -157,6 +159,8 @@ export function RoomPage() {
   const [settingsTheme, setSettingsTheme] = useState<RoomThemeId>('purple')
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsError, setSettingsError] = useState<string | null>(null)
+  const [membersPanelOpen, setMembersPanelOpen] = useState(false)
+  const [roleBusyId, setRoleBusyId] = useState<string | null>(null)
 
   const [nowPlaying, setNowPlaying] = useState<{ title: string; djUsername: string; paused: boolean } | null>(
     null,
@@ -258,13 +262,14 @@ export function RoomPage() {
   async function loadMembers(rid: string) {
     const { data } = await supabase
       .from('room_members')
-      .select('user_id, seat_index, is_muted, profiles(username, equipped)')
+      .select('user_id, seat_index, is_muted, role, profiles(username, equipped)')
       .eq('room_id', rid)
     const rows = (data ?? []) as unknown as RoomMemberRow[]
     const mapped = rows.map((r) => ({
       user_id: r.user_id,
       seat_index: r.seat_index,
       is_muted: r.is_muted,
+      role: r.role,
       username: r.profiles?.username ?? '?',
       equipped: r.profiles?.equipped ?? {},
     }))
@@ -542,6 +547,11 @@ export function RoomPage() {
   }, [mySeat, slug])
 
   const isOwner = room !== null && room !== 'not-found' && room.owner_id === userId
+  // Room mates get the owner's authority (mute/kick/invite/settings)
+  // except over the owner themself - enforced server-side in each RPC,
+  // this just drives which controls the client shows.
+  const isRoommate = me?.role === 'roommate'
+  const canModerate = isOwner || isRoommate
   useEffect(() => {
     isOwnerRef.current = isOwner
   }, [isOwner])
@@ -735,6 +745,17 @@ export function RoomPage() {
       await kickFromLiveKit(roomId, targetUserId)
     } catch (err) {
       console.error('LiveKit kick failed:', err)
+    }
+  }
+
+  async function toggleRoomMate(targetUserId: string, makeRoommate: boolean) {
+    if (!roomId || !isOwner) return
+    setRoleBusyId(targetUserId)
+    try {
+      await supabase.rpc('set_room_mate', { p_room: roomId, p_user: targetUserId, p_is_roommate: makeRoommate })
+      await loadMembers(roomId)
+    } finally {
+      setRoleBusyId(null)
     }
   }
 
@@ -1160,7 +1181,7 @@ export function RoomPage() {
   }
 
   async function handleSaveSettings() {
-    if (!room || room === 'not-found' || !isOwner || !settingsName.trim()) return
+    if (!room || room === 'not-found' || !canModerate || !settingsName.trim()) return
     setSettingsSaving(true)
     setSettingsError(null)
     try {
@@ -1195,7 +1216,10 @@ export function RoomPage() {
   if (joinDenied) {
     return (
       <div className="p-6 text-center">
-        <p className="text-zinc-400">This hangout is invite-only, and you haven't been invited.</p>
+        <p className="text-zinc-400">
+          Can't get in right now — either you haven't been invited, or the owner isn't in this hangout at the
+          moment. Try again once they're back.
+        </p>
         <button onClick={() => navigate('/')} className="mt-2 text-purple-400 hover:underline">
           Back home
         </button>
@@ -1241,7 +1265,7 @@ export function RoomPage() {
           <p className="text-xs text-white/60">/r/{room.slug}</p>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
-          {isOwner && (
+          {canModerate && (
             <button
               onClick={openSettingsModal}
               className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm font-medium text-white"
@@ -1249,7 +1273,13 @@ export function RoomPage() {
               ⚙️
             </button>
           )}
-          {isOwner && (
+          <button
+            onClick={() => setMembersPanelOpen(true)}
+            className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm font-medium text-white"
+          >
+            👤 Members
+          </button>
+          {canModerate && (
             <button
               onClick={openInvitePanel}
               className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm font-medium text-white"
@@ -1640,7 +1670,7 @@ export function RoomPage() {
                       targetUsername={occupant.username}
                       roomId={roomId ?? undefined}
                       ownerControls={
-                        isOwner
+                        canModerate && occupant.user_id !== room.owner_id
                           ? {
                               isMuted: occupant.is_muted,
                               onMute: (muted) => ownerMute(occupant.user_id, muted),
@@ -1725,7 +1755,7 @@ export function RoomPage() {
                   targetUsername={l.username}
                   roomId={roomId ?? undefined}
                   ownerControls={
-                    isOwner
+                    canModerate && l.user_id !== room.owner_id
                       ? {
                           isMuted: l.is_muted,
                           onMute: (muted) => ownerMute(l.user_id, muted),
@@ -1831,6 +1861,56 @@ export function RoomPage() {
             >
               {settingsSaving ? 'Saving…' : 'Save'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {membersPanelOpen && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60">
+          <div className="mx-4 flex max-h-[80vh] w-full max-w-xs flex-col rounded-2xl bg-zinc-900 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-medium text-white">Members & roles</p>
+              <button onClick={() => setMembersPanelOpen(false)} className="text-zinc-400 hover:text-white">
+                ✕
+              </button>
+            </div>
+            <div className="flex flex-col gap-2 overflow-y-auto">
+              {members.map((m) => (
+                <div
+                  key={m.user_id}
+                  className="flex items-center gap-2 rounded-lg border border-zinc-800 px-3 py-2"
+                >
+                  <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-white">
+                    <AvatarImage
+                      equipped={m.equipped}
+                      fallbackLetter={m.username[0]?.toUpperCase() ?? '?'}
+                      className="h-full w-full object-contain"
+                    />
+                  </div>
+                  <span className="flex-1 truncate text-sm text-white">{m.username}</span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                      m.user_id === room.owner_id
+                        ? 'bg-amber-900/50 text-amber-300'
+                        : m.role === 'roommate'
+                          ? 'bg-purple-900/50 text-purple-300'
+                          : 'bg-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    {m.user_id === room.owner_id ? 'Owner' : m.role === 'roommate' ? 'Room mate' : 'Member'}
+                  </span>
+                  {isOwner && m.user_id !== room.owner_id && (
+                    <button
+                      onClick={() => toggleRoomMate(m.user_id, m.role !== 'roommate')}
+                      disabled={roleBusyId === m.user_id}
+                      className="rounded-lg border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 disabled:opacity-50"
+                    >
+                      {m.role === 'roommate' ? 'Remove' : 'Make room mate'}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
