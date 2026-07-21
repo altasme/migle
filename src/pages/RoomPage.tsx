@@ -24,6 +24,7 @@ import {
   finalizeKaraokeScore,
   computeKaraokeAchievements,
   KARAOKE_SAMPLE_MS,
+  KARAOKE_ACTIVE_THRESHOLD,
   KARAOKE_REACTION_EMOJIS,
   type KaraokeAccumulator,
   type KaraokeScoreResult,
@@ -170,6 +171,8 @@ export function RoomPage() {
   const [karaokeResults, setKaraokeResults] = useState<KaraokePerformer[]>([])
   const [karaokeReactionCounts, setKaraokeReactionCounts] = useState<Record<string, Record<string, number>>>({})
   const [myKaraokeResult, setMyKaraokeResult] = useState<KaraokeScoreResult | null>(null)
+  const [karaokeLiveDetected, setKaraokeLiveDetected] = useState(false)
+  const [karaokeSampleCount, setKaraokeSampleCount] = useState(0)
 
   const livekitRoomRef = useRef<Room | null>(null)
   const audioContainerRef = useRef<HTMLDivElement | null>(null)
@@ -194,6 +197,9 @@ export function RoomPage() {
   // moment - room/ownership loads asynchronously after, so a plain
   // variable would go stale. Same fix as membersRef elsewhere in this file.
   const isOwnerRef = useRef(false)
+  // Same staleness concern as isOwnerRef - read from the 'youtube_request_state'
+  // handler, which is registered once inside the long-lived effect.
+  const watchPartyModeRef = useRef<'karaoke' | 'together' | null>(null)
 
   useEffect(() => {
     membersRef.current = members
@@ -413,7 +419,7 @@ export function RoomPage() {
           setWatchPartyMode(p.mode ?? null)
           resetKaraokeSession()
           const player = await ensureYtPlayer(false)
-          player.loadVideoById(p.videoId)
+          player.loadVideoById({ videoId: p.videoId, startSeconds: p.time ?? 0 })
           return
         }
         if (p.action === 'sync' && p.time !== undefined) {
@@ -437,8 +443,33 @@ export function RoomPage() {
           return { ...prev, [p.targetUserId]: forTarget }
         })
       })
+      // A client that just (re)joined has no idea whether a Watch Party is
+      // already in progress - broadcasts aren't replayed to late joiners.
+      // Every client asks once on subscribe; only the owner (source of
+      // truth) answers, with the current video + position so the newcomer
+      // catches up instead of seeing nothing.
+      .on('broadcast', { event: 'youtube_request_state' }, () => {
+        if (!isOwnerRef.current) return
+        const player = ytPlayerRef.current
+        if (!player || typeof player.getVideoData !== 'function') return
+        const videoId = player.getVideoData()?.video_id
+        if (!videoId) return
+        channelRef.current?.send({
+          type: 'broadcast',
+          event: 'youtube',
+          payload: {
+            action: 'load',
+            videoId,
+            mode: watchPartyModeRef.current,
+            time: player.getCurrentTime?.() ?? 0,
+          },
+        })
+      })
       .subscribe((status, err) => {
         console.log('[realtime] channel status:', status, err ?? '')
+        if (status === 'SUBSCRIBED') {
+          channel.send({ type: 'broadcast', event: 'youtube_request_state', payload: {} })
+        }
       })
     channelRef.current = channel
 
@@ -483,31 +514,46 @@ export function RoomPage() {
   useEffect(() => {
     isOwnerRef.current = isOwner
   }, [isOwner])
+  useEffect(() => {
+    watchPartyModeRef.current = watchPartyMode
+  }, [watchPartyMode])
 
   // Fun Karaoke Scoring: while I'm seated during a Karaoke Mode session,
   // sample my own LiveKit mic level every 200ms against my own player's
   // song position. Self-reported per singer - see karaokeScore.ts for why.
   useEffect(() => {
     const active = watchPartyMode === 'karaoke' && youtubeVideoId !== null && mySeat !== null
-    if (!active) return
+    if (!active) {
+      setKaraokeLiveDetected(false)
+      return
+    }
     if (!karaokeAccRef.current) {
       karaokeAccRef.current = createKaraokeAccumulator()
       karaokeNeverMutedRef.current = !myMuted
+      setKaraokeSampleCount(0)
     }
     const id = window.setInterval(() => {
       const player = ytPlayerRef.current
       const lkRoom = livekitRoomRef.current
-      if (!player || !lkRoom || typeof player.getDuration !== 'function') return
+      if (!player || !lkRoom || typeof player.getDuration !== 'function') {
+        setKaraokeLiveDetected(false)
+        return
+      }
       const duration = player.getDuration()
       if (!duration) return
       const ratio = Math.max(0, Math.min(1, player.getCurrentTime() / duration))
       const level = lkRoom.localParticipant.audioLevel ?? 0
-      if (karaokeAccRef.current) sampleKaraoke(karaokeAccRef.current, level, ratio)
+      if (karaokeAccRef.current) {
+        sampleKaraoke(karaokeAccRef.current, level, ratio)
+        setKaraokeSampleCount(karaokeAccRef.current.samples)
+      }
+      setKaraokeLiveDetected(level > KARAOKE_ACTIVE_THRESHOLD)
     }, KARAOKE_SAMPLE_MS)
     karaokeSampleIntervalRef.current = id
     return () => {
       clearInterval(id)
       if (karaokeSampleIntervalRef.current === id) karaokeSampleIntervalRef.current = null
+      setKaraokeLiveDetected(false)
     }
   }, [watchPartyMode, youtubeVideoId, mySeat])
 
@@ -784,6 +830,8 @@ export function RoomPage() {
     setKaraokeResults([])
     setKaraokeReactionCounts({})
     setMyKaraokeResult(null)
+    setKaraokeSampleCount(0)
+    setKaraokeLiveDetected(false)
   }
 
   // Reads membersRef/userId at call time rather than closing over `me` -
@@ -1285,7 +1333,10 @@ export function RoomPage() {
             {watchPartyMode === 'karaoke' ? '🎤 Karaoke Mode' : '🎬 Watch Together'}
           </p>
         )}
-        <div ref={ytContainerRef} className="overflow-hidden rounded-lg" />
+        <div
+          ref={ytContainerRef}
+          className={`overflow-hidden rounded-lg ${isOwner ? '' : 'pointer-events-none'}`}
+        />
         {isOwner && (
           <button
             onClick={handleStopYoutube}
@@ -1444,6 +1495,14 @@ export function RoomPage() {
             Leave seat
           </button>
         </div>
+      )}
+      {mySeat !== null && watchPartyMode === 'karaoke' && youtubeVideoId && (
+        <p
+          className={`text-center text-xs ${karaokeLiveDetected ? 'text-green-400' : 'text-zinc-600'}`}
+        >
+          🎤 {karaokeLiveDetected ? 'Singing detected!' : 'Listening for your voice…'}
+          <span className="text-zinc-700"> ({karaokeSampleCount} samples)</span>
+        </p>
       )}
       {seatError && <p className="text-center text-sm text-red-400">{seatError}</p>}
 
