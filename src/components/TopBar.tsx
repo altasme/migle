@@ -5,7 +5,7 @@ export function TopBar() {
   const wallet = useWallet()
 
   return (
-    <header className="flex items-center justify-between border-b border-zinc-800/80 bg-zinc-950/95 px-4 py-3 backdrop-blur">
+    <header className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-800/80 bg-zinc-950/95 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur">
       <span className="bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-xl font-bold tracking-tight text-transparent">
         Mingleverse
       </span>

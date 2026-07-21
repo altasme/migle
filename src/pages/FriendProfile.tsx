@@ -64,7 +64,7 @@ export function FriendProfile() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="page-enter mx-auto flex w-full max-w-md flex-col gap-6 p-6 pt-[max(1.5rem,env(safe-area-inset-top))]">
       <Link to="/friends" className="self-start text-sm text-zinc-400 hover:text-white">
         ← Back
       </Link>
