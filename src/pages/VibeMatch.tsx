@@ -496,30 +496,42 @@ export function VibeMatch() {
 
   if (phase === 'select') {
     return (
-      <div className="mx-auto flex min-h-svh w-full max-w-sm flex-col items-center justify-center gap-6 p-6 text-center">
+      <div className="page-enter mx-auto flex min-h-svh w-full max-w-sm flex-col justify-center gap-6 p-6 pt-[max(1.5rem,env(safe-area-inset-top))]">
         <button onClick={() => navigate('/')} className="self-start text-sm text-zinc-400 hover:text-white">
           ← Back
         </button>
-        <div>
-          <h1 className="text-2xl font-semibold text-white">Mingling</h1>
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-white">✨ Start Mingling</h1>
           <p className="mt-1 text-sm text-zinc-400">Meet someone new, right now.</p>
         </div>
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        {error && <p className="text-center text-sm text-red-400">{error}</p>}
         <div className="flex w-full flex-col gap-3">
           <button
             onClick={() => startSearching('text')}
-            className="rounded-full bg-purple-600 px-4 py-3 font-semibold text-white"
+            className="flex items-center gap-4 rounded-2xl bg-gradient-to-br from-purple-600 to-pink-600 p-4 text-left shadow-lg shadow-purple-950/40 transition-transform active:scale-[0.97]"
           >
-            💬 Text
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-black/20 text-2xl">
+              💬
+            </span>
+            <span>
+              <span className="block font-semibold text-white">Text Chat</span>
+              <span className="block text-xs text-white/70">Match and chat via messages</span>
+            </span>
           </button>
           <button
             onClick={() => startSearching('voice')}
             disabled={voiceMinglesLeft === 0}
-            className="rounded-full border border-purple-600 px-4 py-3 font-semibold text-purple-400 disabled:cursor-not-allowed disabled:border-zinc-700 disabled:text-zinc-500"
+            className="flex items-center gap-4 rounded-2xl border border-purple-600/60 bg-zinc-900/60 p-4 text-left transition-transform active:scale-[0.97] disabled:cursor-not-allowed disabled:border-zinc-800 disabled:opacity-50"
           >
-            🎙️ Voice
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-purple-600/15 text-2xl">
+              🎤
+            </span>
+            <span>
+              <span className="block font-semibold text-white">Voice Chat</span>
+              <span className="block text-xs text-zinc-400">Talk face to face</span>
+            </span>
           </button>
-          <p className="text-xs text-zinc-500">
+          <p className="text-center text-xs text-zinc-500">
             {voiceMinglesLeft === 0
               ? "🎤 You've used today's 5 free Voice Mingles"
               : voiceMinglesLeft !== null
@@ -604,7 +616,7 @@ export function VibeMatch() {
   const likeLocked = elapsed < LIKE_UNLOCK_SEC
 
   return (
-    <div className="mx-auto flex h-svh w-full max-w-lg flex-col p-4">
+    <div className="mx-auto flex h-svh w-full max-w-lg flex-col p-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]">
       <div className="mb-3 flex items-center gap-3">
         <button onClick={() => setShowLeaveConfirm(true)} className="text-zinc-400 hover:text-white">
           ←
@@ -821,7 +833,10 @@ export function VibeMatch() {
               onChange={(e) => setInput(e.target.value)}
               className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
             />
-            <button type="submit" className="rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white">
+            <button
+              type="submit"
+              className="rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white transition-transform active:scale-95"
+            >
               Send
             </button>
           </form>

@@ -120,7 +120,19 @@ export function Chat() {
       )}
 
       {loading ? (
-        <p className="text-sm text-zinc-500">Loading…</p>
+        // Skeleton rows shaped like the real list, so the page doesn't
+        // jump when content lands.
+        <div className="flex flex-col divide-y divide-zinc-900 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/50">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex items-center gap-3 px-3 py-2.5">
+              <div className="skeleton h-12 w-12 rounded-full" />
+              <div className="flex flex-1 flex-col gap-2">
+                <div className="skeleton h-3 w-24" />
+                <div className="skeleton h-2.5 w-40" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : threads.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/50 p-8 text-center">
           <span className="text-3xl">💬</span>

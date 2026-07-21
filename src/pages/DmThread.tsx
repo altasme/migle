@@ -214,7 +214,7 @@ export function DmThread() {
   }
 
   return (
-    <div className="mx-auto flex h-svh w-full max-w-lg flex-col p-4">
+    <div className="mx-auto flex h-svh w-full max-w-lg flex-col p-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]">
       <div className="mb-3 flex items-center gap-3">
         <button onClick={() => navigate('/chat')} className="text-zinc-400 hover:text-white">
           ←
@@ -346,7 +346,7 @@ export function DmThread() {
         />
         <button
           type="submit"
-          className="rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white"
+          className="rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white transition-transform active:scale-95"
         >
           Send
         </button>

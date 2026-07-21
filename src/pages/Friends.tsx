@@ -33,7 +33,7 @@ export function Friends() {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="page-enter mx-auto flex w-full max-w-md flex-col gap-4 p-4 pt-[max(1rem,env(safe-area-inset-top))]">
       <div className="flex items-center gap-3">
         <Link to="/profile" className="text-sm text-zinc-400 hover:text-white">
           ← Back
@@ -44,7 +44,14 @@ export function Friends() {
       {error && <p className="text-sm text-red-400">{error}</p>}
 
       {loading ? (
-        <p className="text-sm text-zinc-500">Loading…</p>
+        <div className="flex flex-col gap-2">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/50 p-3">
+              <div className="skeleton h-10 w-10 rounded-full" />
+              <div className="skeleton h-3 w-28" />
+            </div>
+          ))}
+        </div>
       ) : friends.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/50 p-8 text-center">
           <span className="text-3xl">🤝</span>

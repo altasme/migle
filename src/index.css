@@ -2,6 +2,72 @@
 
 body {
   margin: 0;
+  /* Kill the mobile-browser artifacts that make a web page feel like a
+     web page instead of an app: the grey flash on tap, rubber-band
+     overscroll revealing the page background, and accidental text
+     selection on long-press of buttons/nav chrome. */
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+nav,
+header {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+::selection {
+  background: rgba(147, 51, 234, 0.45);
+}
+
+/* Mobile browsers auto-zoom the page when focusing an input whose font is
+   under 16px, which jolts the whole layout. Enforcing the floor only on
+   form fields keeps the design's text-sm everywhere else. */
+@media (max-width: 640px) {
+  input,
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+}
+
+/* Slim, dark scrollbars instead of the default chrome ones. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(63 63 70) transparent;
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-enter {
+  animation: page-enter 0.22s ease-out both;
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.skeleton {
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+  background: rgb(39 39 42);
+  border-radius: 0.5rem;
 }
 
 @keyframes float-up {

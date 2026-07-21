@@ -18,7 +18,7 @@ export function BottomNav() {
   )
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-zinc-800/80 bg-zinc-950/95 backdrop-blur">
+    <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-zinc-800/80 bg-zinc-950/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
       <div className="mx-auto flex max-w-md justify-between px-2 py-2">
         {tabs.map(({ to, label, Icon, end }) => (
           <NavLink
@@ -26,7 +26,7 @@ export function BottomNav() {
             to={to}
             end={end}
             className={({ isActive }) =>
-              `relative flex flex-1 flex-col items-center gap-1 rounded-lg py-1.5 text-xs transition-colors ${
+              `relative flex flex-1 flex-col items-center gap-1 rounded-lg py-1.5 text-xs transition-colors active:scale-95 ${
                 isActive ? 'text-purple-400' : 'text-zinc-500'
               }`
             }
@@ -34,8 +34,8 @@ export function BottomNav() {
             {({ isActive }) => (
               <>
                 <span
-                  className={`flex h-8 w-12 items-center justify-center rounded-full transition-colors ${
-                    isActive ? 'bg-purple-600/15' : ''
+                  className={`flex h-8 w-12 items-center justify-center rounded-full transition-all duration-200 ${
+                    isActive ? 'scale-105 bg-purple-600/15' : 'scale-100'
                   }`}
                 >
                   <span className="relative">
