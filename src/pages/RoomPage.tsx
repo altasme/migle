@@ -69,6 +69,22 @@ type RoomRow = {
   theme: string
   max_seats: number
   owner_id: string
+  watch_party_video_id: string | null
+  watch_party_mode: 'karaoke' | 'together' | null
+  watch_party_position_seconds: number
+  watch_party_is_playing: boolean
+  watch_party_updated_at: string | null
+}
+
+// Extrapolates "where the video should be right now" from the last
+// position the owner persisted, plus elapsed wall-clock time if it was
+// playing. Good enough for a catch-up seek - the live 2s sync heartbeat
+// corrects any residual drift once the joining client is fully connected.
+function estimateWatchPartyPosition(room: RoomRow): number {
+  const base = room.watch_party_position_seconds ?? 0
+  if (!room.watch_party_is_playing || !room.watch_party_updated_at) return base
+  const elapsedSeconds = (Date.now() - new Date(room.watch_party_updated_at).getTime()) / 1000
+  return base + Math.max(0, elapsedSeconds)
 }
 
 type Member = {
@@ -195,14 +211,12 @@ export function RoomPage() {
   const karaokeSampleIntervalRef = useRef<number | null>(null)
   const prevMySeatRef = useRef<number | null | undefined>(undefined)
   const selfInitiatedSeatChangeRef = useRef(false)
+  const resumedWatchPartyRef = useRef(false)
   // The 'youtube' broadcast handler is set up once inside a long-lived
   // effect (deps: [roomId, userId, slug]) and closes over isOwner at that
   // moment - room/ownership loads asynchronously after, so a plain
   // variable would go stale. Same fix as membersRef elsewhere in this file.
   const isOwnerRef = useRef(false)
-  // Same staleness concern as isOwnerRef - read from the 'youtube_request_state'
-  // handler, which is registered once inside the long-lived effect.
-  const watchPartyModeRef = useRef<'karaoke' | 'together' | null>(null)
 
   useEffect(() => {
     membersRef.current = members
@@ -218,7 +232,9 @@ export function RoomPage() {
     setRoom(null)
     supabase
       .from('rooms')
-      .select('id, slug, name, topic, theme, max_seats, owner_id')
+      .select(
+        'id, slug, name, topic, theme, max_seats, owner_id, watch_party_video_id, watch_party_mode, watch_party_position_seconds, watch_party_is_playing, watch_party_updated_at',
+      )
       .eq('slug', slug)
       .maybeSingle()
       .then(({ data }) => setRoom(data ?? 'not-found'))
@@ -446,33 +462,8 @@ export function RoomPage() {
           return { ...prev, [p.targetUserId]: forTarget }
         })
       })
-      // A client that just (re)joined has no idea whether a Watch Party is
-      // already in progress - broadcasts aren't replayed to late joiners.
-      // Every client asks once on subscribe; only the owner (source of
-      // truth) answers, with the current video + position so the newcomer
-      // catches up instead of seeing nothing.
-      .on('broadcast', { event: 'youtube_request_state' }, () => {
-        if (!isOwnerRef.current) return
-        const player = ytPlayerRef.current
-        if (!player || typeof player.getVideoData !== 'function') return
-        const videoId = player.getVideoData()?.video_id
-        if (!videoId) return
-        channelRef.current?.send({
-          type: 'broadcast',
-          event: 'youtube',
-          payload: {
-            action: 'load',
-            videoId,
-            mode: watchPartyModeRef.current,
-            time: player.getCurrentTime?.() ?? 0,
-          },
-        })
-      })
       .subscribe((status, err) => {
         console.log('[realtime] channel status:', status, err ?? '')
-        if (status === 'SUBSCRIBED') {
-          channel.send({ type: 'broadcast', event: 'youtube_request_state', payload: {} })
-        }
       })
     channelRef.current = channel
 
@@ -517,9 +508,28 @@ export function RoomPage() {
   useEffect(() => {
     isOwnerRef.current = isOwner
   }, [isOwner])
+
+  // The room row is the source of truth for an in-progress Watch Party -
+  // whoever (re)joins, including the owner refreshing their own browser,
+  // resumes straight off it instead of needing a live round-trip to
+  // whoever currently holds the "real" player. Runs once per room load;
+  // the live 'youtube' broadcasts (sync/pause/etc.) take over from there.
   useEffect(() => {
-    watchPartyModeRef.current = watchPartyMode
-  }, [watchPartyMode])
+    if (!room || room === 'not-found' || resumedWatchPartyRef.current) return
+    if (!room.watch_party_video_id) return
+    resumedWatchPartyRef.current = true
+    const mode = room.watch_party_mode
+    const videoId = room.watch_party_video_id
+    const position = estimateWatchPartyPosition(room)
+    setYoutubeVideoId(videoId)
+    setWatchPartyMode(mode)
+    resetKaraokeSession()
+    ;(async () => {
+      const player = await ensureYtPlayer(isOwnerRef.current)
+      player.loadVideoById({ videoId, startSeconds: Math.max(0, position) })
+      if (isOwnerRef.current) startYoutubeSyncHeartbeat()
+    })()
+  }, [room])
 
   // Catch a seat assigned to us by someone else (owner_pass_mic) - self-
   // service takeSeat/leaveSeat already reconnect voice themselves and set
@@ -919,6 +929,26 @@ export function RoomPage() {
             if (e.data === 0) {
               finalizeMyKaraokeScore()
               if (isOwnerRef.current) handleStopYoutube()
+              return
+            }
+            // Playing (1) or paused (2): keep the room row's resume point
+            // fresh so a late joiner's estimate stays accurate. roomId is
+            // stable for this component's whole lifetime (tied to slug),
+            // so it's safe to read directly even from this long-lived
+            // callback.
+            if ((e.data === 1 || e.data === 2) && isOwnerRef.current && roomId) {
+              const p = ytPlayerRef.current
+              if (p && typeof p.getCurrentTime === 'function') {
+                supabase
+                  .from('rooms')
+                  .update({
+                    watch_party_position_seconds: p.getCurrentTime(),
+                    watch_party_is_playing: e.data === 1,
+                    watch_party_updated_at: new Date().toISOString(),
+                  })
+                  .eq('id', roomId)
+                  .then(() => {})
+              }
             }
           },
         },
@@ -940,7 +970,7 @@ export function RoomPage() {
   }
 
   async function loadYoutubeVideo(videoId: string, mode: 'karaoke' | 'together') {
-    if (!isOwner) return
+    if (!isOwner || !roomId) return
     setYoutubeError(null)
     setYoutubeModalOpen(false)
     setYoutubeVideoId(videoId)
@@ -950,6 +980,16 @@ export function RoomPage() {
     player.loadVideoById(videoId)
     channelRef.current?.send({ type: 'broadcast', event: 'youtube', payload: { action: 'load', videoId, mode } })
     startYoutubeSyncHeartbeat()
+    await supabase
+      .from('rooms')
+      .update({
+        watch_party_video_id: videoId,
+        watch_party_mode: mode,
+        watch_party_position_seconds: 0,
+        watch_party_is_playing: true,
+        watch_party_updated_at: new Date().toISOString(),
+      })
+      .eq('id', roomId)
   }
 
   async function handleLoadYoutubeLink() {
@@ -985,6 +1025,19 @@ export function RoomPage() {
     ytPlayerRef.current?.stopVideo?.()
     channelRef.current?.send({ type: 'broadcast', event: 'youtube', payload: { action: 'stop' } })
     finalizeMyKaraokeScore()
+    if (roomId) {
+      supabase
+        .from('rooms')
+        .update({
+          watch_party_video_id: null,
+          watch_party_mode: null,
+          watch_party_position_seconds: 0,
+          watch_party_is_playing: true,
+          watch_party_updated_at: null,
+        })
+        .eq('id', roomId)
+        .then(() => {})
+    }
   }
 
   function toggleMusicPause() {
