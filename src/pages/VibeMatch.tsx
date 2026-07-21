@@ -630,7 +630,7 @@ export function VibeMatch() {
         </div>
       )}
 
-      {!bothLiked && showHeartPrompt && (
+      {bothReady && !bothLiked && showHeartPrompt && (
         <div className="mb-3 flex items-center justify-between rounded-lg border border-pink-800/50 bg-pink-950/30 px-3 py-2 text-sm">
           <span className="text-zinc-200">
             {partnerLiked
@@ -649,37 +649,39 @@ export function VibeMatch() {
         </div>
       )}
 
-      <div className="mb-3 flex gap-2">
-        <button
-          onClick={handleNext}
-          className="flex-1 rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-medium text-white"
-        >
-          Next
-        </button>
-        {!bothLiked && !showHeartPrompt && (
+      {bothReady && (
+        <div className="mb-3 flex gap-2">
           <button
-            onClick={handleLike}
-            disabled={likeBusy || iLiked || likeLocked}
-            title={likeLocked ? 'You can like each other after the first minute and a half' : undefined}
-            className="flex-1 rounded-lg border border-pink-700 px-3 py-1.5 text-sm text-pink-400 disabled:opacity-50"
+            onClick={handleNext}
+            className="flex-1 rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-medium text-white"
           >
-            {iLiked ? '❤️ Liked' : likeLocked ? `🤍 Like (${formatCountdown(LIKE_UNLOCK_SEC - elapsed)})` : '🤍 Like'}
+            Next
           </button>
-        )}
-        <button
-          onClick={handleBlock}
-          disabled={blockBusy}
-          className="flex-1 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 disabled:opacity-50"
-        >
-          🚫 Block
-        </button>
-        <button
-          onClick={() => setReporting(true)}
-          className="flex-1 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300"
-        >
-          🚩 Report
-        </button>
-      </div>
+          {!bothLiked && !showHeartPrompt && (
+            <button
+              onClick={handleLike}
+              disabled={likeBusy || iLiked || likeLocked}
+              title={likeLocked ? 'You can like each other after the first minute and a half' : undefined}
+              className="flex-1 rounded-lg border border-pink-700 px-3 py-1.5 text-sm text-pink-400 disabled:opacity-50"
+            >
+              {iLiked ? '❤️ Liked' : likeLocked ? `🤍 Like (${formatCountdown(LIKE_UNLOCK_SEC - elapsed)})` : '🤍 Like'}
+            </button>
+          )}
+          <button
+            onClick={handleBlock}
+            disabled={blockBusy}
+            className="flex-1 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 disabled:opacity-50"
+          >
+            🚫 Block
+          </button>
+          <button
+            onClick={() => setReporting(true)}
+            className="flex-1 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300"
+          >
+            🚩 Report
+          </button>
+        </div>
+      )}
       {reportDone && <p className="mb-2 text-center text-xs text-emerald-400">Report submitted.</p>}
       {error && <p className="mb-2 text-center text-xs text-red-400">{error}</p>}
 
