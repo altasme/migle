@@ -650,6 +650,9 @@ export function VibeMatch() {
         </div>
       ) : (
         <>
+          <p className="mb-2 text-center text-xs text-zinc-500">
+            Say Hi and remember to keep it clean 🙂
+          </p>
           <div className="flex-1 space-y-1 overflow-y-auto rounded-lg border border-zinc-800 p-3">
             {messages.length === 0 && <p className="text-center text-sm text-zinc-500">Say hi 👋</p>}
             {messages.map((m) => (

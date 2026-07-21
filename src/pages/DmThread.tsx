@@ -228,13 +228,9 @@ export function DmThread() {
         {otherId && other && <SafetyMenu targetId={otherId} targetUsername={other.username} />}
       </div>
 
-      {otherId && (
+      {otherId && relationship && relationship.status !== 'ended' && (
         <div className="mb-3 flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-sm">
-          {!relationship || relationship.status === 'ended' ? (
-            <span className="text-zinc-500">
-              💍 Send them a Ring gift in a room to propose
-            </span>
-          ) : relationship.status === 'pending' && relationship.user_a === userId ? (
+          {relationship.status === 'pending' && relationship.user_a === userId ? (
             <span className="text-zinc-400">💍 Waiting for {other?.username} to accept…</span>
           ) : relationship.status === 'pending' ? (
             <>

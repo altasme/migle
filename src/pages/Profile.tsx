@@ -70,7 +70,6 @@ export function Profile() {
       </div>
       <div>
         <h1 className="text-xl font-semibold text-white">{profile?.username}</h1>
-        <p className="text-sm text-zinc-500">{session?.user.email}</p>
       </div>
 
       <Link to="/friends" className="text-center">
@@ -92,9 +91,6 @@ export function Profile() {
         className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white"
       >
         Edit avatar
-      </Link>
-      <Link to="/leaderboard" className="text-sm text-zinc-400 hover:text-white">
-        🏆 CP Leaderboard
       </Link>
       <Link to="/blocked" className="text-sm text-zinc-400 hover:text-white">
         🚫 Blocked users
