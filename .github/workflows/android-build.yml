@@ -36,6 +36,22 @@ jobs:
       - name: Install web dependencies
         run: npm ci
 
+      # A missing secret silently becomes an empty string, which produces an
+      # APK that installs fine but dies on a blank screen at launch (the
+      # Supabase client throws before React ever mounts). Fail the build
+      # loudly instead so the problem is a red X here, not a broken app on
+      # someone's phone.
+      - name: Check required secrets
+        run: |
+          missing=0
+          [ -z "${{ secrets.VITE_SUPABASE_URL }}" ] && echo "::error::Repo secret VITE_SUPABASE_URL is not set" && missing=1
+          [ -z "${{ secrets.VITE_SUPABASE_ANON_KEY }}" ] && echo "::error::Repo secret VITE_SUPABASE_ANON_KEY is not set" && missing=1
+          [ -z "${{ secrets.VITE_LIVEKIT_URL }}" ] && echo "::error::Repo secret VITE_LIVEKIT_URL is not set" && missing=1
+          if [ "$missing" = "1" ]; then
+            echo "::error::Add the missing secrets under Settings -> Secrets and variables -> Actions (values are in the local .env), then re-run this workflow."
+            exit 1
+          fi
+
       # Vite bakes these into the JS bundle at build time - add them as repo
       # secrets (Settings -> Secrets and variables -> Actions) with the same
       # values as the local .env file, or the app will build but fail to
