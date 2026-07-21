@@ -9,7 +9,8 @@ import { AvatarImage } from '../components/AvatarImage'
 import { SafetyMenu } from '../components/SafetyMenu'
 import { FriendInviteList } from '../components/FriendInviteList'
 import { listFriends, type Friend } from '../lib/friends'
-import { getInvitedFriendIds, inviteFriendToRoom } from '../lib/hangouts'
+import { getInvitedFriendIds, inviteFriendToRoom, updateHangout } from '../lib/hangouts'
+import { ROOM_THEMES, getRoomThemeGradient, type RoomThemeId } from '../lib/roomThemes'
 import { searchJamendoTracks, fetchJamendoByTag, JAMENDO_CATEGORIES, type JamendoTrack } from '../lib/jamendo'
 import {
   extractYouTubeVideoId,
@@ -52,6 +53,8 @@ type RoomRow = {
   id: string
   slug: string
   name: string
+  topic: string | null
+  theme: string
   max_seats: number
   owner_id: string
 }
@@ -117,6 +120,12 @@ export function RoomPage() {
   const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set())
   const [invitingId, setInvitingId] = useState<string | null>(null)
   const [inviteError, setInviteError] = useState<string | null>(null)
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false)
+  const [settingsName, setSettingsName] = useState('')
+  const [settingsTopic, setSettingsTopic] = useState('')
+  const [settingsTheme, setSettingsTheme] = useState<RoomThemeId>('purple')
+  const [settingsSaving, setSettingsSaving] = useState(false)
+  const [settingsError, setSettingsError] = useState<string | null>(null)
 
   const [nowPlaying, setNowPlaying] = useState<{ title: string; djUsername: string; paused: boolean } | null>(
     null,
@@ -177,7 +186,7 @@ export function RoomPage() {
     setRoom(null)
     supabase
       .from('rooms')
-      .select('id, slug, name, max_seats, owner_id')
+      .select('id, slug, name, topic, theme, max_seats, owner_id')
       .eq('slug', slug)
       .maybeSingle()
       .then(({ data }) => setRoom(data ?? 'not-found'))
@@ -813,6 +822,35 @@ export function RoomPage() {
     }
   }
 
+  function openSettingsModal() {
+    if (!room || room === 'not-found') return
+    setSettingsName(room.name)
+    setSettingsTopic(room.topic ?? '')
+    setSettingsTheme((room.theme as RoomThemeId) ?? 'purple')
+    setSettingsError(null)
+    setSettingsModalOpen(true)
+  }
+
+  async function handleSaveSettings() {
+    if (!room || room === 'not-found' || !isOwner || !settingsName.trim()) return
+    setSettingsSaving(true)
+    setSettingsError(null)
+    try {
+      await updateHangout(room.id, { name: settingsName, topic: settingsTopic, theme: settingsTheme })
+      setRoom({
+        ...room,
+        name: settingsName.trim(),
+        topic: settingsTopic.trim() || null,
+        theme: settingsTheme,
+      })
+      setSettingsModalOpen(false)
+    } catch (err) {
+      setSettingsError(err instanceof Error ? err.message : 'Something went wrong.')
+    } finally {
+      setSettingsSaving(false)
+    }
+  }
+
   if (room === null) {
     return <p className="p-6 text-center text-zinc-400">Loading…</p>
   }
@@ -851,16 +889,25 @@ export function RoomPage() {
         onChange={handleMusicFileChange}
       />
 
-      <div className="flex items-center justify-between">
+      <div className={`-mx-4 -mt-4 flex items-center justify-between bg-gradient-to-br p-4 ${getRoomThemeGradient(room.theme)}`}>
         <div>
           <h1 className="text-xl font-semibold text-white">{room.name}</h1>
-          <p className="text-xs text-zinc-500">/r/{room.slug}</p>
+          {room.topic && <p className="text-sm text-white/80">{room.topic}</p>}
+          <p className="text-xs text-white/60">/r/{room.slug}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
+          {isOwner && (
+            <button
+              onClick={openSettingsModal}
+              className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm font-medium text-white"
+            >
+              ⚙️
+            </button>
+          )}
           {isOwner && (
             <button
               onClick={openInvitePanel}
-              className="rounded-lg border border-purple-600 px-3 py-1.5 text-sm font-medium text-purple-400"
+              className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm font-medium text-white"
             >
               👥 Invite
             </button>
@@ -868,7 +915,7 @@ export function RoomPage() {
           {isOwner && musicStatus !== 'playing' && musicStatus !== 'starting' && (
             <button
               onClick={() => setMusicPickerOpen(true)}
-              className="rounded-lg border border-purple-600 px-3 py-1.5 text-sm font-medium text-purple-400"
+              className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm font-medium text-white"
             >
               🎵 Play music
             </button>
@@ -876,20 +923,20 @@ export function RoomPage() {
           {isOwner && !youtubeVideoId && (
             <button
               onClick={() => setYoutubeModalOpen(true)}
-              className="rounded-lg border border-purple-600 px-3 py-1.5 text-sm font-medium text-purple-400"
+              className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm font-medium text-white"
             >
               📺 Karaoke Mode
             </button>
           )}
           <button
             onClick={() => setGiftModalOpen(true)}
-            className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-medium text-white"
+            className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm font-medium text-white"
           >
             🎁 Gift
           </button>
           <button
             onClick={leaveRoom}
-            className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:text-white"
+            className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm text-white"
           >
             Leave
           </button>
@@ -1196,6 +1243,60 @@ export function RoomPage() {
               invitingId={invitingId}
               onInvite={handleInviteFriend}
             />
+          </div>
+        </div>
+      )}
+
+      {settingsModalOpen && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60">
+          <div className="mx-4 w-full max-w-xs rounded-2xl bg-zinc-900 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-medium text-white">Room settings</p>
+              <button onClick={() => setSettingsModalOpen(false)} className="text-zinc-400 hover:text-white">
+                ✕
+              </button>
+            </div>
+
+            <label className="mb-1 block text-xs text-zinc-500">Name</label>
+            <input
+              type="text"
+              value={settingsName}
+              onChange={(e) => setSettingsName(e.target.value)}
+              maxLength={40}
+              className="mb-3 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+            />
+
+            <label className="mb-1 block text-xs text-zinc-500">Topic (optional)</label>
+            <input
+              type="text"
+              value={settingsTopic}
+              onChange={(e) => setSettingsTopic(e.target.value)}
+              maxLength={60}
+              className="mb-3 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+            />
+
+            <label className="mb-1 block text-xs text-zinc-500">Theme</label>
+            <div className="mb-3 flex gap-2">
+              {ROOM_THEMES.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setSettingsTheme(t.id)}
+                  title={t.label}
+                  className={`h-8 w-8 rounded-full bg-gradient-to-br ${t.gradient} ${
+                    settingsTheme === t.id ? 'ring-2 ring-white ring-offset-2 ring-offset-zinc-900' : ''
+                  }`}
+                />
+              ))}
+            </div>
+
+            {settingsError && <p className="mb-2 text-xs text-red-400">{settingsError}</p>}
+            <button
+              onClick={handleSaveSettings}
+              disabled={settingsSaving || !settingsName.trim()}
+              className="w-full rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {settingsSaving ? 'Saving…' : 'Save'}
+            </button>
           </div>
         </div>
       )}
