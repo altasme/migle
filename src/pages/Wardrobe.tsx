@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { getAssetUrl } from '../lib/compositor'
 import { useAuthStore } from '../store/authStore'
 import { AvatarImage } from '../components/AvatarImage'
+import { ECONOMY_ENABLED } from '../lib/featureFlags'
 
 type ShopItem = {
   id: string
@@ -51,7 +52,12 @@ export function Wardrobe() {
   useEffect(() => {
     if (activeStyle || items.length === 0) return
     const currentBody = profile?.equipped?.body
-    setActiveStyle(currentBody ? styleOf(currentBody) : styleOf(items[0].id))
+    if (currentBody) {
+      setActiveStyle(styleOf(currentBody))
+      return
+    }
+    const fallbackPool = ECONOMY_ENABLED ? items : items.filter((i) => i.price_coins === 0 || owned.has(i.id))
+    if (fallbackPool.length > 0) setActiveStyle(styleOf(fallbackPool[0].id))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items])
 
@@ -93,8 +99,11 @@ export function Wardrobe() {
     }
   }
 
-  const styles = [...new Set(items.map((i) => styleOf(i.id)))]
-  const variants = items.filter((i) => styleOf(i.id) === activeStyle)
+  // Economy hidden for now: don't offer looks that would silently spend
+  // coins with no visible price - only free or already-owned looks show.
+  const visibleItems = ECONOMY_ENABLED ? items : items.filter((i) => i.price_coins === 0 || owned.has(i.id))
+  const styles = [...new Set(visibleItems.map((i) => styleOf(i.id)))]
+  const variants = visibleItems.filter((i) => styleOf(i.id) === activeStyle)
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-6 p-4">

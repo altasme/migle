@@ -1,4 +1,5 @@
 import { useWallet } from '../hooks/useWallet'
+import { ECONOMY_ENABLED } from '../lib/featureFlags'
 
 export function TopBar() {
   const wallet = useWallet()
@@ -8,7 +9,7 @@ export function TopBar() {
       <span className="bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-xl font-bold tracking-tight text-transparent">
         Mingleverse
       </span>
-      {wallet && (
+      {ECONOMY_ENABLED && wallet && (
         <div className="flex items-center gap-3 rounded-full border border-zinc-800 bg-zinc-900/80 px-3 py-1.5 text-xs font-medium text-zinc-300">
           <span className="flex items-center gap-1">
             <span>🪙</span>

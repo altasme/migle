@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/authStore'
 import { useNotificationStore } from '../store/notificationStore'
 import { AvatarImage } from '../components/AvatarImage'
 import { SafetyMenu } from '../components/SafetyMenu'
+import { ECONOMY_ENABLED } from '../lib/featureFlags'
 
 type ThreadRow = {
   id: string
@@ -228,7 +229,7 @@ export function DmThread() {
         {otherId && other && <SafetyMenu targetId={otherId} targetUsername={other.username} />}
       </div>
 
-      {otherId && relationship && relationship.status !== 'ended' && (
+      {ECONOMY_ENABLED && otherId && relationship && relationship.status !== 'ended' && (
         <div className="mb-3 flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-sm">
           {relationship.status === 'pending' && relationship.user_a === userId ? (
             <span className="text-zinc-400">💍 Waiting for {other?.username} to accept…</span>

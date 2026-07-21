@@ -12,6 +12,7 @@ import { listFriends, type Friend } from '../lib/friends'
 import { getInvitedFriendIds, inviteFriendToRoom, updateHangout } from '../lib/hangouts'
 import { ROOM_THEMES, getRoomThemeGradient, type RoomThemeId } from '../lib/roomThemes'
 import { searchJamendoTracks, fetchJamendoByTag, JAMENDO_CATEGORIES, type JamendoTrack } from '../lib/jamendo'
+import { ECONOMY_ENABLED } from '../lib/featureFlags'
 import {
   extractYouTubeVideoId,
   loadYouTubeIframeApi,
@@ -1279,12 +1280,14 @@ export function RoomPage() {
               🎉 Watch Party
             </button>
           )}
-          <button
-            onClick={() => setGiftModalOpen(true)}
-            className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm font-medium text-white"
-          >
-            🎁 Gift
-          </button>
+          {ECONOMY_ENABLED && (
+            <button
+              onClick={() => setGiftModalOpen(true)}
+              className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm font-medium text-white"
+            >
+              🎁 Gift
+            </button>
+          )}
           <button
             onClick={leaveRoom}
             className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm text-white"
@@ -1741,7 +1744,7 @@ export function RoomPage() {
         </div>
       )}
 
-      {supporters.length > 0 && (
+      {ECONOMY_ENABLED && supporters.length > 0 && (
         <div className="rounded-lg border border-zinc-800 p-3">
           <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
             Top supporters (24h)
@@ -1970,7 +1973,7 @@ export function RoomPage() {
         </form>
       </div>
 
-      {giftModalOpen && (
+      {ECONOMY_ENABLED && giftModalOpen && (
         <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/60 sm:items-center">
           <div className="w-full max-w-sm rounded-t-2xl bg-zinc-900 p-4 sm:rounded-2xl">
             <div className="mb-3 flex items-center justify-between">
@@ -2060,7 +2063,7 @@ export function RoomPage() {
         </div>
       )}
 
-      {activeGiftAnim && (
+      {ECONOMY_ENABLED && activeGiftAnim && (
         <div className="pointer-events-none fixed inset-0 z-30 flex flex-col items-center justify-center bg-black/40">
           <p className="animate-bounce text-8xl">{GIFT_EMOJI[activeGiftAnim.giftId] ?? '🎁'}</p>
           <p className="mt-4 text-lg font-semibold text-white">
