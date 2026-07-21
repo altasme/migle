@@ -247,9 +247,18 @@ export function VibeMatch() {
       }
       setLikes({ liked_a: state.liked_a, liked_b: state.liked_b })
       setReady({ ready_a: state.ready_a, ready_b: state.ready_b })
+      // Belt and suspenders: enterMatch()'s own markMatchReady call is
+      // fire-and-forget on failure (a comment there says "the next poll
+      // will pick this up," but the poll only ever read state - it never
+      // actually retried). If our own ready flag never landed, both sides
+      // could be stuck on "Connecting..." forever. Retry it here instead.
+      const myReady = session.user_a === userId ? state.ready_a : state.ready_b
+      if (!myReady) {
+        markMatchReady(session.id).catch(() => {})
+      }
     }, STATE_POLL_MS)
     return () => clearInterval(id)
-  }, [phase, session])
+  }, [phase, session, userId])
 
   // Auto-resume searching a moment after the partner leaves. Hitting the
   // 3-minute deadline ourselves is different — that one waits for an
