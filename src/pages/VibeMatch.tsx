@@ -77,6 +77,7 @@ export function VibeMatch() {
   const [voiceMinglesLeft, setVoiceMinglesLeft] = useState<number | null>(null)
   const [waitingMsgIndex, setWaitingMsgIndex] = useState(0)
   const [waitingElapsed, setWaitingElapsed] = useState(0)
+  const [retryingReady, setRetryingReady] = useState(false)
   const chatEndRef = useRef<HTMLDivElement | null>(null)
   const audioContainerRef = useRef<HTMLDivElement | null>(null)
   const livekitRoomRef = useRef<Room | null>(null)
@@ -155,8 +156,26 @@ export function VibeMatch() {
     try {
       const updated = await markMatchReady(found.id)
       setReady({ ready_a: updated.ready_a, ready_b: updated.ready_b })
-    } catch {
-      // The next state poll will pick this up if the RPC hiccuped.
+    } catch (err) {
+      // Surface it instead of swallowing - a silent failure here reads
+      // identically to "still syncing" and is exactly what makes
+      // "Connecting..." look permanently stuck with no clue why.
+      setError(err instanceof Error ? `Couldn't confirm ready: ${err.message}` : "Couldn't confirm ready.")
+    }
+  }
+
+  async function retryReady() {
+    if (!session || retryingReady) return
+    setRetryingReady(true)
+    setError(null)
+    try {
+      const updated = await markMatchReady(session.id)
+      setReady({ ready_a: updated.ready_a, ready_b: updated.ready_b })
+      setLikes({ liked_a: updated.liked_a, liked_b: updated.liked_b })
+    } catch (err) {
+      setError(err instanceof Error ? `Retry failed: ${err.message}` : 'Retry failed.')
+    } finally {
+      setRetryingReady(false)
     }
   }
 
@@ -239,22 +258,29 @@ export function VibeMatch() {
   useEffect(() => {
     if (phase !== 'matched' || !session) return
     const id = setInterval(async () => {
-      const state = await getSessionState(session.id)
-      if (!state) return
-      if (state.ended_at) {
-        setPhase('partner-left')
-        return
-      }
-      setLikes({ liked_a: state.liked_a, liked_b: state.liked_b })
-      setReady({ ready_a: state.ready_a, ready_b: state.ready_b })
-      // Belt and suspenders: enterMatch()'s own markMatchReady call is
-      // fire-and-forget on failure (a comment there says "the next poll
-      // will pick this up," but the poll only ever read state - it never
-      // actually retried). If our own ready flag never landed, both sides
-      // could be stuck on "Connecting..." forever. Retry it here instead.
-      const myReady = session.user_a === userId ? state.ready_a : state.ready_b
-      if (!myReady) {
-        markMatchReady(session.id).catch(() => {})
+      try {
+        const state = await getSessionState(session.id)
+        if (!state) return
+        if (state.ended_at) {
+          setPhase('partner-left')
+          return
+        }
+        setLikes({ liked_a: state.liked_a, liked_b: state.liked_b })
+        setReady({ ready_a: state.ready_a, ready_b: state.ready_b })
+        // Belt and suspenders: enterMatch()'s own markMatchReady call is
+        // fire-and-forget on failure (a comment there says "the next poll
+        // will pick this up," but the poll only ever read state - it never
+        // actually retried). If our own ready flag never landed, both sides
+        // could be stuck on "Connecting..." forever. Retry it here instead.
+        const myReady = session.user_a === userId ? state.ready_a : state.ready_b
+        if (!myReady) {
+          await markMatchReady(session.id)
+        }
+      } catch (err) {
+        // A failure here used to be invisible - the poll would just keep
+        // silently re-trying forever with nothing on screen to explain
+        // why "Connecting..." never clears. Surface it.
+        setError(err instanceof Error ? `Sync error: ${err.message}` : 'Sync error.')
       }
     }, STATE_POLL_MS)
     return () => clearInterval(id)
@@ -724,6 +750,19 @@ export function VibeMatch() {
           <p className="text-sm text-zinc-400">
             Connecting you with {partner?.username ?? 'them'}…
           </p>
+          <p className="text-xs text-zinc-600">
+            You: {(iAmA ? ready.ready_a : ready.ready_b) ? 'ready ✅' : 'connecting…'} ·{' '}
+            {partner?.username ?? 'They'}: {(iAmA ? ready.ready_b : ready.ready_a) ? 'ready ✅' : 'connecting…'}
+          </p>
+          {elapsed >= 8 && (
+            <button
+              onClick={retryReady}
+              disabled={retryingReady}
+              className="rounded-full border border-zinc-700 px-4 py-1.5 text-xs text-zinc-300 disabled:opacity-50"
+            >
+              {retryingReady ? 'Retrying…' : 'Taking a while — tap to retry'}
+            </button>
+          )}
         </div>
       ) : session?.mode === 'voice' ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-lg border border-zinc-800 p-6">
