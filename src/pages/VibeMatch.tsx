@@ -19,7 +19,7 @@ import {
   type MatchMessage,
 } from '../lib/match'
 
-type Phase = 'select' | 'waiting' | 'matched' | 'partner-left' | 'time-up'
+type Phase = 'select' | 'waiting' | 'matched' | 'partner-left' | 'time-up' | 'no-match'
 type Partner = { id: string; username: string; equipped: Record<string, string> }
 
 const WAITING_POLL_MS = 2500
@@ -28,6 +28,11 @@ const MESSAGE_POLL_MS = 3000
 const LIKE_UNLOCK_SEC = 90
 const HEART_PROMPT_SEC = 120
 const MATCH_DEADLINE_SEC = 180
+// Separate concept from MATCH_DEADLINE_SEC even though it's the same
+// duration today - this is "nobody to pair with," that one is "we paired
+// but didn't both like in time." Keeping them apart so they can be tuned
+// independently later.
+const WAITING_TIMEOUT_SEC = 180
 const REPORT_REASONS = ['Harassment', 'Underage', 'Spam', 'Inappropriate content', 'Other']
 
 function formatCountdown(secondsLeft: number) {
@@ -187,6 +192,20 @@ export function VibeMatch() {
     return () => clearInterval(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, userId, pendingMode])
+
+  // Nobody to pair with after WAITING_TIMEOUT_SEC — stop polling and ask
+  // instead of leaving the spinner running forever. Explicitly drops the
+  // queue row here rather than relying on the unmount cleanup, since
+  // 'no-match' isn't 'waiting' anymore and shouldn't be left dangling in
+  // match_queue if the user just closes the tab on this screen.
+  useEffect(() => {
+    if (phase !== 'waiting') return
+    const id = setTimeout(async () => {
+      if (userId) await supabase.from('match_queue').delete().eq('user_id', userId)
+      setPhase('no-match')
+    }, WAITING_TIMEOUT_SEC * 1000)
+    return () => clearTimeout(id)
+  }, [phase, userId])
 
   // While matched, watch for the partner ending the session (Next, block,
   // leaving) and keep our copy of both like flags fresh.
@@ -446,16 +465,18 @@ export function VibeMatch() {
     )
   }
 
-  if (phase === 'waiting' || phase === 'partner-left' || phase === 'time-up') {
+  if (phase === 'waiting' || phase === 'partner-left' || phase === 'time-up' || phase === 'no-match') {
     const copy =
       phase === 'partner-left'
         ? 'They left. Finding someone new…'
         : phase === 'time-up'
           ? "Time's up!"
-          : 'Looking for someone…'
+          : phase === 'no-match'
+            ? "No one's available right now"
+            : 'Looking for someone…'
     return (
       <div className="mx-auto flex min-h-svh w-full max-w-sm flex-col items-center justify-center gap-4 p-6 text-center">
-        {phase !== 'time-up' && (
+        {(phase === 'waiting' || phase === 'partner-left') && (
           <div className="h-10 w-10 animate-spin rounded-full border-2 border-zinc-700 border-t-purple-500" />
         )}
         <p className="text-white">{copy}</p>
@@ -472,6 +493,19 @@ export function VibeMatch() {
             </button>
             <button onClick={leaveToHome} className="text-sm text-zinc-400 hover:text-white">
               Back to home
+            </button>
+          </div>
+        ) : phase === 'no-match' ? (
+          <div className="flex flex-col items-center gap-3">
+            <p className="text-sm text-zinc-400">Nobody was free to match with this time.</p>
+            <button
+              onClick={() => startSearching()}
+              className="rounded-full bg-purple-600 px-5 py-2.5 font-medium text-white"
+            >
+              Try again →
+            </button>
+            <button onClick={leaveToHome} className="text-sm text-zinc-400 hover:text-white">
+              Try later
             </button>
           </div>
         ) : (
