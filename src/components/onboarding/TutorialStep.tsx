@@ -30,22 +30,20 @@ const SLIDES: Slide[] = [
 ]
 
 // The tutorial is narrated by a mascot instead of a wall of onboarding
-// copy - a lifted crop of the existing chibi art (public/mascot-guide.png,
-// from auth-scene.png) rather than new artwork, kept consistent with the
-// rest of the app's illustrated style.
+// copy - full-body chibi art (public/mascot-guide.png, custom-made for
+// this screen) shown large rather than cropped into a small circle, since
+// her pointing/presenting pose is the whole point.
 export function TutorialStep({ onFinish, busy }: { onFinish: () => void; busy: boolean }) {
   const [index, setIndex] = useState(0)
   const slide = SLIDES[index]
   const isLast = index === SLIDES.length - 1
 
   return (
-    <div className="page-enter mx-auto flex h-svh w-full max-w-sm flex-col items-center justify-center gap-6 p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] text-center">
-      <div className="relative">
-        <div className="absolute -inset-3 rounded-full bg-gradient-to-br from-purple-600/30 to-pink-600/30 blur-xl" />
-        <div className="relative h-40 w-40 overflow-hidden rounded-full ring-4 ring-purple-500/40">
-          <img src="/mascot-guide.png" alt="Ming" className="h-full w-full object-cover" />
-        </div>
-        <span className="absolute -bottom-1 -right-1 flex h-11 w-11 items-center justify-center rounded-full bg-zinc-900 text-2xl ring-2 ring-zinc-950">
+    <div className="page-enter mx-auto flex h-svh w-full max-w-sm flex-col items-center justify-center gap-4 p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] text-center">
+      <div className="relative flex flex-col items-center">
+        <div className="absolute bottom-1 h-6 w-28 rounded-full bg-purple-600/25 blur-xl" />
+        <img src="/mascot-guide.png" alt="Ming" className="relative h-52 w-auto object-contain drop-shadow-[0_8px_16px_rgba(147,51,234,0.35)]" />
+        <span className="absolute -right-1 top-2 flex h-11 w-11 items-center justify-center rounded-full bg-zinc-900 text-2xl shadow-lg ring-2 ring-purple-500/40">
           {slide.emoji}
         </span>
       </div>
