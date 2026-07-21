@@ -75,6 +75,7 @@ type RoomRow = {
   watch_party_position_seconds: number
   watch_party_is_playing: boolean
   watch_party_updated_at: string | null
+  watch_party_host_id: string | null
 }
 
 // Extrapolates "where the video should be right now" from the last
@@ -218,6 +219,17 @@ export function RoomPage() {
   // moment - room/ownership loads asynchronously after, so a plain
   // variable would go stale. Same fix as membersRef elsewhere in this file.
   const isOwnerRef = useRef(false)
+  // Watch Party/Karaoke used to be driven entirely by room ownership - now
+  // any member can start one, so "who's currently authoritative for this
+  // session" (drives the sync heartbeat, can stop it) is tracked
+  // separately from isOwner. Same ref-for-closures / state-for-render
+  // split as isOwner above.
+  const [isHost, setIsHost] = useState(false)
+  const isHostRef = useRef(false)
+  function setHost(value: boolean) {
+    isHostRef.current = value
+    setIsHost(value)
+  }
 
   useEffect(() => {
     membersRef.current = members
@@ -234,7 +246,7 @@ export function RoomPage() {
     supabase
       .from('rooms')
       .select(
-        'id, slug, name, topic, theme, max_seats, owner_id, watch_party_video_id, watch_party_mode, watch_party_position_seconds, watch_party_is_playing, watch_party_updated_at',
+        'id, slug, name, topic, theme, max_seats, owner_id, watch_party_video_id, watch_party_mode, watch_party_position_seconds, watch_party_is_playing, watch_party_updated_at, watch_party_host_id',
       )
       .eq('slug', slug)
       .maybeSingle()
@@ -415,10 +427,10 @@ export function RoomPage() {
         }
       })
       .on('broadcast', { event: 'youtube' }, async ({ payload }) => {
-        // The owner's own player is the source of truth, driven by their
+        // The host's own player is the source of truth, driven by their
         // real interactions with YouTube's native controls - it doesn't
         // react to its own broadcasts.
-        if (isOwnerRef.current) return
+        if (isHostRef.current) return
         const p = payload as {
           action: 'load' | 'sync' | 'stop'
           videoId?: string
@@ -432,12 +444,14 @@ export function RoomPage() {
           setWatchPartyMode(null)
           ytPlayerRef.current?.stopVideo?.()
           finalizeMyKaraokeScore()
+          setHost(false)
           return
         }
         if (p.action === 'load' && p.videoId) {
           setYoutubeVideoId(p.videoId)
           setWatchPartyMode(p.mode ?? null)
           resetKaraokeSession()
+          setHost(false)
           const player = await ensureYtPlayer(false)
           player.loadVideoById({ videoId: p.videoId, startSeconds: p.time ?? 0 })
           return
@@ -541,6 +555,7 @@ export function RoomPage() {
     if (!room || room === 'not-found' || resumedWatchPartyRef.current) return
     if (!room.watch_party_video_id) return
     resumedWatchPartyRef.current = true
+    setHost(room.watch_party_host_id === userId)
     const mode = room.watch_party_mode
     const videoId = room.watch_party_video_id
     const position = estimateWatchPartyPosition(room)
@@ -548,9 +563,9 @@ export function RoomPage() {
     setWatchPartyMode(mode)
     resetKaraokeSession()
     ;(async () => {
-      const player = await ensureYtPlayer(isOwnerRef.current)
+      const player = await ensureYtPlayer(isHostRef.current)
       player.loadVideoById({ videoId, startSeconds: Math.max(0, position) })
-      if (isOwnerRef.current) startYoutubeSyncHeartbeat()
+      if (isHostRef.current) startYoutubeSyncHeartbeat()
     })()
   }, [room])
 
@@ -809,7 +824,7 @@ export function RoomPage() {
   // same as any other audio track - no changes needed on the listening
   // side either way.
   async function startPlayingSource(src: string, title: string, opts?: { crossOrigin?: boolean }) {
-    if (!roomId || !me || !isOwner) return
+    if (!roomId || !me) return
 
     // Publishing anything requires a mic seat - canPublish is granted
     // server-side based on seat status (Rule 4), there's no separate
@@ -919,7 +934,7 @@ export function RoomPage() {
 
 
   function handleStopMusic() {
-    if (!isOwner) return
+    if (!me || nowPlaying?.djUsername !== me.username) return
     stopMusicLocal()
     setNowPlaying(null)
     channelRef.current?.send({ type: 'broadcast', event: 'music', payload: { action: 'stop' } })
@@ -992,12 +1007,12 @@ export function RoomPage() {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onStateChange: (e: any) => {
             // Natural end of video (state 0): finalize my own score, and
-            // if I'm the owner, cascade a stop to the room. isOwnerRef is
+            // if I'm the host, cascade a stop to the room. isHostRef is
             // read (not a plain variable) because this callback is
             // registered once, when the player is first created.
             if (e.data === 0) {
               finalizeMyKaraokeScore()
-              if (isOwnerRef.current) handleStopYoutube()
+              if (isHostRef.current) handleStopYoutube()
               return
             }
             // Playing (1) or paused (2): keep the room row's resume point
@@ -1005,17 +1020,15 @@ export function RoomPage() {
             // stable for this component's whole lifetime (tied to slug),
             // so it's safe to read directly even from this long-lived
             // callback.
-            if ((e.data === 1 || e.data === 2) && isOwnerRef.current && roomId) {
+            if ((e.data === 1 || e.data === 2) && isHostRef.current && roomId) {
               const p = ytPlayerRef.current
               if (p && typeof p.getCurrentTime === 'function') {
                 supabase
-                  .from('rooms')
-                  .update({
-                    watch_party_position_seconds: p.getCurrentTime(),
-                    watch_party_is_playing: e.data === 1,
-                    watch_party_updated_at: new Date().toISOString(),
+                  .rpc('sync_watch_party_position', {
+                    p_room: roomId,
+                    p_position_seconds: p.getCurrentTime(),
+                    p_is_playing: e.data === 1,
                   })
-                  .eq('id', roomId)
                   .then(() => {})
               }
             }
@@ -1039,26 +1052,18 @@ export function RoomPage() {
   }
 
   async function loadYoutubeVideo(videoId: string, mode: 'karaoke' | 'together') {
-    if (!isOwner || !roomId) return
+    if (!me || !roomId) return
     setYoutubeError(null)
     setYoutubeModalOpen(false)
     setYoutubeVideoId(videoId)
     setWatchPartyMode(mode)
     resetKaraokeSession()
+    setHost(true)
     const player = await ensureYtPlayer(true)
     player.loadVideoById(videoId)
     channelRef.current?.send({ type: 'broadcast', event: 'youtube', payload: { action: 'load', videoId, mode } })
     startYoutubeSyncHeartbeat()
-    await supabase
-      .from('rooms')
-      .update({
-        watch_party_video_id: videoId,
-        watch_party_mode: mode,
-        watch_party_position_seconds: 0,
-        watch_party_is_playing: true,
-        watch_party_updated_at: new Date().toISOString(),
-      })
-      .eq('id', roomId)
+    await supabase.rpc('start_watch_party', { p_room: roomId, p_video_id: videoId, p_mode: mode })
   }
 
   async function handleLoadYoutubeLink() {
@@ -1084,7 +1089,7 @@ export function RoomPage() {
   }
 
   function handleStopYoutube() {
-    if (!isOwnerRef.current) return
+    if (!isHostRef.current) return
     if (ytSyncIntervalRef.current) {
       clearInterval(ytSyncIntervalRef.current)
       ytSyncIntervalRef.current = null
@@ -1094,23 +1099,14 @@ export function RoomPage() {
     ytPlayerRef.current?.stopVideo?.()
     channelRef.current?.send({ type: 'broadcast', event: 'youtube', payload: { action: 'stop' } })
     finalizeMyKaraokeScore()
+    setHost(false)
     if (roomId) {
-      supabase
-        .from('rooms')
-        .update({
-          watch_party_video_id: null,
-          watch_party_mode: null,
-          watch_party_position_seconds: 0,
-          watch_party_is_playing: true,
-          watch_party_updated_at: null,
-        })
-        .eq('id', roomId)
-        .then(() => {})
+      supabase.rpc('stop_watch_party', { p_room: roomId }).then(() => {})
     }
   }
 
   function toggleMusicPause() {
-    if (!isOwner) return
+    if (!me || nowPlaying?.djUsername !== me.username) return
     const audioEl = musicAudioElRef.current
     if (!audioEl) return
     const nowPaused = !audioEl.paused
@@ -1126,7 +1122,7 @@ export function RoomPage() {
   }
 
   function handleMusicVolumeChange(v: number) {
-    if (!isOwner) return
+    if (!me || nowPlaying?.djUsername !== me.username) return
     setMusicVolume(v)
     if (musicAudioElRef.current) musicAudioElRef.current.volume = v
   }
@@ -1261,7 +1257,7 @@ export function RoomPage() {
               👥 Invite
             </button>
           )}
-          {isOwner && musicStatus !== 'playing' && musicStatus !== 'starting' && (
+          {!!me && !nowPlaying && musicStatus !== 'starting' && (
             <button
               onClick={() => setMusicPickerOpen(true)}
               className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm font-medium text-white"
@@ -1269,7 +1265,7 @@ export function RoomPage() {
               🎵 Play music
             </button>
           )}
-          {isOwner && !youtubeVideoId && (
+          {!!me && !youtubeVideoId && (
             <button
               onClick={() => {
                 setYoutubeModalMode(null)
@@ -1314,7 +1310,7 @@ export function RoomPage() {
               {nowPlaying.paused && <span className="text-zinc-500"> · paused</span>}
             </span>
           </div>
-          {isOwner && (
+          {nowPlaying.djUsername === me?.username && (
             <div className="flex items-center gap-2">
               <button
                 onClick={toggleMusicPause}
@@ -1495,9 +1491,9 @@ export function RoomPage() {
         )}
         <div
           ref={ytContainerRef}
-          className={`overflow-hidden rounded-lg ${isOwner ? '' : 'pointer-events-none'}`}
+          className={`overflow-hidden rounded-lg ${isHost ? '' : 'pointer-events-none'}`}
         />
-        {isOwner && (
+        {isHost && (
           <button
             onClick={handleStopYoutube}
             className="self-start rounded-lg border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300"
@@ -1714,7 +1710,7 @@ export function RoomPage() {
               className="flex items-center gap-1 rounded-full bg-zinc-900 px-2 py-1"
             >
               {l.username}
-              {isOwner && l.user_id !== userId && watchPartyMode === 'karaoke' && youtubeVideoId && (
+              {isHost && l.user_id !== userId && watchPartyMode === 'karaoke' && youtubeVideoId && (
                 <button
                   onClick={() => setAsSinger(l.user_id)}
                   className="rounded-full bg-purple-900/60 px-1.5 py-0.5 text-xs text-purple-300"
