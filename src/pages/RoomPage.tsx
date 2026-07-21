@@ -845,7 +845,7 @@ export function RoomPage() {
   // same as any other audio track - no changes needed on the listening
   // side either way.
   async function startPlayingSource(src: string, title: string, opts?: { crossOrigin?: boolean }) {
-    if (!roomId || !me) return
+    if (!roomId || !canModerate || !me) return
 
     // Publishing anything requires a mic seat - canPublish is granted
     // server-side based on seat status (Rule 4), there's no separate
@@ -1073,7 +1073,7 @@ export function RoomPage() {
   }
 
   async function loadYoutubeVideo(videoId: string, mode: 'karaoke' | 'together') {
-    if (!me || !roomId) return
+    if (!canModerate || !roomId) return
     setYoutubeError(null)
     setYoutubeModalOpen(false)
     setYoutubeVideoId(videoId)
@@ -1287,7 +1287,7 @@ export function RoomPage() {
               👥 Invite
             </button>
           )}
-          {!!me && !nowPlaying && musicStatus !== 'starting' && (
+          {canModerate && !nowPlaying && musicStatus !== 'starting' && (
             <button
               onClick={() => setMusicPickerOpen(true)}
               className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm font-medium text-white"
@@ -1295,7 +1295,7 @@ export function RoomPage() {
               🎵 Play music
             </button>
           )}
-          {!!me && !youtubeVideoId && (
+          {canModerate && !youtubeVideoId && (
             <button
               onClick={() => {
                 setYoutubeModalMode(null)

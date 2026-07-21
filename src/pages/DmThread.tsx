@@ -6,6 +6,7 @@ import { useNotificationStore } from '../store/notificationStore'
 import { AvatarImage } from '../components/AvatarImage'
 import { SafetyMenu } from '../components/SafetyMenu'
 import { ECONOMY_ENABLED } from '../lib/featureFlags'
+import { formatDayLabel, formatClockTime } from '../lib/time'
 
 type ThreadRow = {
   id: string
@@ -295,21 +296,42 @@ export function DmThread() {
         </div>
       )}
 
-      <div className="flex-1 space-y-1 overflow-y-auto rounded-lg border border-zinc-800 p-3">
+      <div className="flex-1 overflow-y-auto rounded-lg border border-zinc-800 p-3">
         {messages.length === 0 && (
           <p className="text-center text-sm text-zinc-500">Say hi 👋</p>
         )}
-        {messages.map((m) => (
-          <div key={m.id} className={m.sender_id === userId ? 'text-right' : 'text-left'}>
-            <span
-              className={`inline-block max-w-[75%] rounded-lg px-3 py-1.5 text-sm ${
-                m.sender_id === userId ? 'bg-purple-600 text-white' : 'bg-zinc-800 text-zinc-200'
-              }`}
-            >
-              {m.body}
-            </span>
-          </div>
-        ))}
+        {messages.map((m, i) => {
+          const prev = messages[i - 1]
+          const mine = m.sender_id === userId
+          const newDay = !prev || formatDayLabel(prev.created_at) !== formatDayLabel(m.created_at)
+          // Grouped like Discord/Messenger: consecutive messages from the
+          // same sender sit tight together, with the day/sender boundary
+          // getting the extra breathing room instead of every bubble.
+          const groupStart = newDay || !prev || prev.sender_id !== m.sender_id
+          const nextMine = messages[i + 1]?.sender_id === m.sender_id
+          const groupEnd = !nextMine || (messages[i + 1] && formatDayLabel(messages[i + 1].created_at) !== formatDayLabel(m.created_at))
+          return (
+            <div key={m.id}>
+              {newDay && (
+                <p className="my-3 text-center text-[11px] font-medium uppercase tracking-wide text-zinc-600">
+                  {formatDayLabel(m.created_at)}
+                </p>
+              )}
+              <div className={`${groupStart ? 'mt-3' : 'mt-0.5'} ${mine ? 'text-right' : 'text-left'}`}>
+                <span
+                  className={`inline-block max-w-[75%] px-3 py-1.5 text-sm ${
+                    mine ? 'bg-purple-600 text-white' : 'bg-zinc-800 text-zinc-200'
+                  } ${groupStart && groupEnd ? 'rounded-2xl' : groupStart ? `rounded-2xl ${mine ? 'rounded-br-md' : 'rounded-bl-md'}` : groupEnd ? `rounded-2xl ${mine ? 'rounded-tr-md' : 'rounded-tl-md'}` : `rounded-2xl ${mine ? 'rounded-r-md' : 'rounded-l-md'}`}`}
+                >
+                  {m.body}
+                </span>
+                {groupEnd && (
+                  <p className="mt-0.5 text-[10px] text-zinc-600">{formatClockTime(m.created_at)}</p>
+                )}
+              </div>
+            </div>
+          )
+        })}
         <div ref={chatEndRef} />
       </div>
 
