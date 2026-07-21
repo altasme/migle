@@ -82,6 +82,25 @@ type RoomRow = {
 // position the owner persisted, plus elapsed wall-clock time if it was
 // playing. Good enough for a catch-up seek - the live 2s sync heartbeat
 // corrects any residual drift once the joining client is fully connected.
+// Discord-style stable name colors in room chat: each username hashes to
+// one of these, so people are scannable at a glance without any stored
+// per-user color.
+const NAME_COLORS = [
+  'text-purple-400',
+  'text-pink-400',
+  'text-sky-400',
+  'text-emerald-400',
+  'text-amber-400',
+  'text-rose-400',
+  'text-cyan-400',
+]
+
+function usernameColor(name: string): string {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0
+  return NAME_COLORS[Math.abs(hash) % NAME_COLORS.length]
+}
+
 function estimateWatchPartyPosition(room: RoomRow): number {
   const base = room.watch_party_position_seconds ?? 0
   if (!room.watch_party_is_playing || !room.watch_party_updated_at) return base
@@ -1247,7 +1266,7 @@ export function RoomPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-col gap-4 p-4">
+    <div className="page-enter mx-auto flex w-full max-w-lg flex-col gap-4 p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
       <div ref={audioContainerRef} className="hidden" />
       <audio ref={musicAudioElRef} onEnded={handleStopMusic} className="hidden" />
       <input
@@ -1258,31 +1277,59 @@ export function RoomPage() {
         onChange={handleMusicFileChange}
       />
 
-      <div className={`-mx-4 -mt-4 flex items-center justify-between bg-gradient-to-br p-4 ${getRoomThemeGradient(room.theme)}`}>
-        <div>
-          <h1 className="text-xl font-semibold text-white">{room.name}</h1>
-          {room.topic && <p className="text-sm text-white/80">{room.topic}</p>}
-          <p className="text-xs text-white/60">/r/{room.slug}</p>
+      <div
+        className={`relative -mx-4 -mt-4 overflow-hidden bg-gradient-to-br p-4 pt-[max(1rem,env(safe-area-inset-top))] ${getRoomThemeGradient(room.theme)}`}
+      >
+        <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+        <div className="pointer-events-none absolute -bottom-10 left-1/3 h-24 w-24 rounded-full bg-black/20 blur-2xl" />
+
+        <div className="relative flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-xl font-bold text-white">{room.name}</h1>
+            {room.topic && <p className="truncate text-sm text-white/80">{room.topic}</p>}
+            <p className="mt-0.5 flex items-center gap-1.5 text-xs text-white/70">
+              {voiceStatus === 'connected' ? (
+                <>
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                  </span>
+                  Live · {members.length} here
+                </>
+              ) : voiceStatus === 'error' ? (
+                <>⚠️ Voice unavailable{voiceError ? `: ${voiceError}` : ''}</>
+              ) : (
+                <>Connecting voice…</>
+              )}
+            </p>
+          </div>
+          <button
+            onClick={leaveRoom}
+            className="shrink-0 rounded-full border border-white/40 bg-black/25 px-4 py-1.5 text-sm font-medium text-white transition-transform active:scale-95"
+          >
+            Leave
+          </button>
         </div>
-        <div className="flex flex-wrap justify-end gap-2">
+
+        <div className="relative mt-3 flex gap-2 overflow-x-auto pb-0.5">
           {canModerate && (
             <button
               onClick={openSettingsModal}
-              className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm font-medium text-white"
+              className="flex shrink-0 items-center gap-1.5 rounded-full border border-white/30 bg-black/25 px-3 py-1.5 text-xs font-medium text-white transition-transform active:scale-95"
             >
-              ⚙️
+              ⚙️ Settings
             </button>
           )}
           <button
             onClick={() => setMembersPanelOpen(true)}
-            className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm font-medium text-white"
+            className="flex shrink-0 items-center gap-1.5 rounded-full border border-white/30 bg-black/25 px-3 py-1.5 text-xs font-medium text-white transition-transform active:scale-95"
           >
             👤 Members
           </button>
           {canModerate && (
             <button
               onClick={openInvitePanel}
-              className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm font-medium text-white"
+              className="flex shrink-0 items-center gap-1.5 rounded-full border border-white/30 bg-black/25 px-3 py-1.5 text-xs font-medium text-white transition-transform active:scale-95"
             >
               👥 Invite
             </button>
@@ -1290,9 +1337,9 @@ export function RoomPage() {
           {canModerate && !nowPlaying && musicStatus !== 'starting' && (
             <button
               onClick={() => setMusicPickerOpen(true)}
-              className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm font-medium text-white"
+              className="flex shrink-0 items-center gap-1.5 rounded-full border border-white/30 bg-black/25 px-3 py-1.5 text-xs font-medium text-white transition-transform active:scale-95"
             >
-              🎵 Play music
+              🎵 Music
             </button>
           )}
           {canModerate && !youtubeVideoId && (
@@ -1301,7 +1348,7 @@ export function RoomPage() {
                 setYoutubeModalMode(null)
                 setYoutubeModalOpen(true)
               }}
-              className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm font-medium text-white"
+              className="flex shrink-0 items-center gap-1.5 rounded-full border border-white/30 bg-black/25 px-3 py-1.5 text-xs font-medium text-white transition-transform active:scale-95"
             >
               🎉 Watch Party
             </button>
@@ -1309,29 +1356,18 @@ export function RoomPage() {
           {ECONOMY_ENABLED && (
             <button
               onClick={() => setGiftModalOpen(true)}
-              className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm font-medium text-white"
+              className="flex shrink-0 items-center gap-1.5 rounded-full border border-white/30 bg-black/25 px-3 py-1.5 text-xs font-medium text-white transition-transform active:scale-95"
             >
               🎁 Gift
             </button>
           )}
-          <button
-            onClick={leaveRoom}
-            className="rounded-lg border border-white/40 bg-black/20 px-3 py-1.5 text-sm text-white"
-          >
-            Leave
-          </button>
         </div>
       </div>
-
-      <p className="text-xs text-zinc-500">
-        Voice: {voiceStatus}
-        {voiceError ? `: ${voiceError}` : ''}
-      </p>
 
       {musicError && <p className="text-xs text-red-400">{musicError}</p>}
 
       {nowPlaying && (
-        <div className="flex flex-col gap-2 rounded-lg border border-purple-800/50 bg-purple-950/30 px-3 py-2 text-sm">
+        <div className="flex flex-col gap-2 rounded-xl border border-purple-800/50 bg-purple-950/30 px-3 py-2 text-sm">
           <div className="flex items-center gap-2">
             <span>🎵</span>
             <span className="flex-1 text-zinc-200">
@@ -1620,7 +1656,7 @@ export function RoomPage() {
         </div>
       )}
 
-      <div className="relative overflow-hidden">
+      <div className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-gradient-to-b from-zinc-900/80 to-zinc-950 p-4">
         {floatingReactions.length > 0 && (
           <div className="pointer-events-none absolute inset-0 z-10">
             {floatingReactions.map((r) => (
@@ -1634,23 +1670,33 @@ export function RoomPage() {
             ))}
           </div>
         )}
-        <div className="grid grid-cols-4 gap-3">
+
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            🎙️ On mic
+          </h2>
+          <span className="text-xs text-zinc-600">
+            {members.filter((m) => m.seat_index !== null).length}/{room.max_seats}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-4 gap-x-3 gap-y-4">
         {Array.from({ length: room.max_seats }, (_, i) => {
           const occupant = members.find((m) => m.seat_index === i)
           const isMe = occupant?.user_id === userId
           return (
-            <div key={i} className="flex flex-col items-center gap-1">
+            <div key={i} className="flex flex-col items-center gap-1.5">
               <div className="relative">
                 <button
                   onClick={() => (occupant ? (isMe ? toggleMute() : undefined) : takeSeat(i))}
                   disabled={(!occupant && mySeat === i) || (!occupant && karaokeSeatLocked)}
                   title={!occupant && karaokeSeatLocked ? 'Only one person can sing at a time during Karaoke Mode' : undefined}
-                  className={`flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border-2 text-white disabled:cursor-not-allowed disabled:opacity-40 ${
+                  className={`flex h-14 w-14 items-center justify-center overflow-hidden rounded-full text-white transition-transform active:scale-90 disabled:cursor-not-allowed disabled:opacity-40 ${
                     occupant
                       ? isMe
-                        ? 'border-purple-500 bg-purple-900'
-                        : 'border-zinc-600 bg-zinc-800'
-                      : 'border-dashed border-zinc-700 bg-zinc-900 text-zinc-600'
+                        ? 'bg-purple-900 ring-2 ring-purple-400 shadow-lg shadow-purple-900/50'
+                        : 'bg-zinc-800 ring-2 ring-zinc-600'
+                      : 'border-2 border-dashed border-zinc-700/80 bg-zinc-900/60 text-lg text-zinc-600'
                   }`}
                 >
                   {occupant ? (
@@ -1663,6 +1709,11 @@ export function RoomPage() {
                     '+'
                   )}
                 </button>
+                {occupant?.is_muted && (
+                  <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-zinc-950 text-[10px] ring-1 ring-zinc-700">
+                    🔇
+                  </span>
+                )}
                 {occupant && !isMe && (
                   <div className="absolute -right-1 -top-1 rounded-full bg-zinc-900/90">
                     <SafetyMenu
@@ -1682,10 +1733,11 @@ export function RoomPage() {
                   </div>
                 )}
               </div>
-              <span className="max-w-14 truncate text-xs text-zinc-400">
-                {occupant ? occupant.username : 'empty'}
-                {occupant?.is_muted ? ' 🔇' : ''}
-              </span>
+              {occupant && (
+                <span className={`max-w-16 truncate text-xs ${isMe ? 'font-medium text-purple-300' : 'text-zinc-400'}`}>
+                  {occupant.username}
+                </span>
+              )}
               {occupant && !isMe && watchPartyMode === 'karaoke' && youtubeVideoId && (
                 <div className="flex flex-wrap justify-center gap-1">
                   {KARAOKE_REACTION_EMOJIS.map((emoji) => (
@@ -1704,24 +1756,30 @@ export function RoomPage() {
           )
         })}
         </div>
-      </div>
 
-      {mySeat !== null && (
-        <div className="flex justify-center gap-2">
-          <button
-            onClick={toggleMute}
-            className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:text-white"
-          >
-            {myMuted ? 'Unmute' : 'Mute'}
-          </button>
-          <button
-            onClick={leaveSeat}
-            className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:text-white"
-          >
-            Leave seat
-          </button>
-        </div>
-      )}
+        {mySeat === null ? (
+          <p className="mt-3 text-center text-xs text-zinc-600">Tap a seat to hop on mic</p>
+        ) : (
+          <div className="mt-4 flex justify-center gap-2">
+            <button
+              onClick={toggleMute}
+              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-transform active:scale-95 ${
+                myMuted
+                  ? 'bg-red-600 text-white'
+                  : 'border border-zinc-700 text-zinc-300 hover:text-white'
+              }`}
+            >
+              {myMuted ? '🔇 Unmute' : '🎤 Mute'}
+            </button>
+            <button
+              onClick={leaveSeat}
+              className="rounded-full border border-zinc-700 px-4 py-1.5 text-sm text-zinc-300 transition-transform hover:text-white active:scale-95"
+            >
+              Leave seat
+            </button>
+          </div>
+        )}
+      </div>
       {mySeat !== null && watchPartyMode === 'karaoke' && youtubeVideoId && (
         <p
           className={`text-center text-xs ${karaokeLiveDetected ? 'text-green-400' : 'text-zinc-600'}`}
@@ -1733,12 +1791,20 @@ export function RoomPage() {
       {seatError && <p className="text-center text-sm text-red-400">{seatError}</p>}
 
       {listeners.length > 0 && (
-        <div className="flex flex-wrap justify-center gap-2 text-xs text-zinc-500">
+        <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-zinc-400">
+          <span className="text-zinc-600">👋 Hanging out:</span>
           {listeners.map((l) => (
             <span
               key={l.user_id}
-              className="flex items-center gap-1 rounded-full bg-zinc-900 px-2 py-1"
+              className="flex items-center gap-1.5 rounded-full border border-zinc-800 bg-zinc-900 py-1 pl-1 pr-2"
             >
+              <span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-zinc-800">
+                <AvatarImage
+                  equipped={l.equipped}
+                  fallbackLetter={l.username[0]?.toUpperCase() ?? '?'}
+                  className="h-full w-full object-contain"
+                />
+              </span>
               {l.username}
               {isHost && l.user_id !== userId && watchPartyMode === 'karaoke' && youtubeVideoId && (
                 <button
@@ -2021,28 +2087,37 @@ export function RoomPage() {
         </div>
       )}
 
-      <div className="flex h-72 flex-col rounded-lg border border-zinc-800">
-        <div className="flex-1 space-y-1 overflow-y-auto p-3">
+      <div className="flex h-72 flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/40">
+        <div className="border-b border-zinc-800/80 px-3 py-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">💬 Room chat</h2>
+        </div>
+        <div className="flex-1 space-y-1.5 overflow-y-auto p-3">
+          {messages.length === 0 && (
+            <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
+              <span className="text-2xl">💬</span>
+              <p className="text-sm text-zinc-600">No messages yet — say hi!</p>
+            </div>
+          )}
           {messages.map((m) => (
-            <p key={m.id} className="text-sm text-zinc-300">
-              <span className="font-medium text-white">{m.username}: </span>
+            <p key={m.id} className="text-sm leading-relaxed text-zinc-300">
+              <span className={`font-semibold ${usernameColor(m.username)}`}>{m.username}</span>{' '}
               {m.body}
             </p>
           ))}
           <div ref={chatEndRef} />
         </div>
-        <form onSubmit={sendMessage} className="flex gap-2 border-t border-zinc-800 p-2">
+        <form onSubmit={sendMessage} className="flex gap-2 border-t border-zinc-800/80 p-2">
           <input
             type="text"
             maxLength={500}
             placeholder="Say something…"
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
-            className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
+            className="flex-1 rounded-full border border-zinc-700 bg-zinc-950 px-4 py-1.5 text-sm text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
           />
           <button
             type="submit"
-            className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-medium text-white"
+            className="rounded-full bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-1.5 text-sm font-semibold text-white transition-transform active:scale-95"
           >
             Send
           </button>
