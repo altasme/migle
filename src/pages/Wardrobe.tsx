@@ -111,6 +111,7 @@ export function Wardrobe() {
             equipped={equipped}
             fallbackLetter={profile?.username[0]?.toUpperCase() ?? '?'}
             className="h-full w-full object-contain"
+            variant="full"
           />
         </div>
       </div>
