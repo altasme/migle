@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import type { PromptAnswer } from '../lib/tags'
 
 export type Profile = {
   id: string
@@ -12,6 +13,8 @@ export type Profile = {
   looking_for: string[]
   onboarded: boolean
   bio: string | null
+  personality_traits: string[]
+  prompt_answers: PromptAnswer[]
 }
 
 type AuthState = {
@@ -53,7 +56,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     const { data } = await supabase
       .from('profiles')
-      .select('id, username, birthdate, equipped, is_admin, interests, looking_for, onboarded, bio')
+      .select(
+        'id, username, birthdate, equipped, is_admin, interests, looking_for, onboarded, bio, personality_traits, prompt_answers',
+      )
       .eq('id', userId)
       .maybeSingle()
     set({ profile: data })
