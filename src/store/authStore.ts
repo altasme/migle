@@ -54,13 +54,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ profile: null })
       return
     }
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select(
         'id, username, birthdate, equipped, is_admin, interests, looking_for, onboarded, bio, personality_traits, prompt_answers',
       )
       .eq('id', userId)
       .maybeSingle()
+    // A query error (e.g. a column a migration hasn't added yet) used to
+    // silently produce `data: null` here, which is indistinguishable from
+    // "this account has no profile row" - every signed-in user got bounced
+    // to Claim Username, not just genuinely new ones. Surface it and keep
+    // whatever profile we already had rather than wiping out a good one.
+    if (error) {
+      console.error('refreshProfile failed:', error)
+      return
+    }
     set({ profile: data })
   },
 
