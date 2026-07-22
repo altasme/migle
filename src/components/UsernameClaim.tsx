@@ -55,6 +55,14 @@ export function UsernameClaim() {
 
     await refreshProfile()
     setSubmitting(false)
+    // The insert above succeeded, so a profile row now genuinely exists -
+    // if the store still doesn't have it, refreshProfile's own fetch
+    // failed (e.g. a schema mismatch) and silently staying on this screen
+    // forever is exactly the "nothing happens" trap that already bit
+    // real users once. Say so instead of pretending nothing went wrong.
+    if (!useAuthStore.getState().profile) {
+      setError("Your account was created, but something went wrong loading it. Please try again in a moment.")
+    }
   }
 
   return (
