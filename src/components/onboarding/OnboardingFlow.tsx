@@ -58,6 +58,7 @@ export function OnboardingFlow() {
   if (step === 'interests') {
     return (
       <ChipPickerStep
+        key="interests"
         step={3}
         title="What are you into? 🎮"
         subtitle="Pick your interests, helps people find common ground with you"
@@ -74,6 +75,7 @@ export function OnboardingFlow() {
   if (step === 'personality') {
     return (
       <ChipPickerStep
+        key="personality"
         step={4}
         title="What's your vibe? ✨"
         subtitle="Pick 3 that sound like you"
