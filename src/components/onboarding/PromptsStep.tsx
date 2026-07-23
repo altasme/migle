@@ -33,10 +33,10 @@ export function PromptsStep({
 
   return (
     <OnboardingChrome
-      step={4}
-      totalSteps={5}
+      step={5}
+      totalSteps={6}
       title="Answer 3 question cards 💭"
-      subtitle={`Way more fun than a bio. Pick ${PROMPT_COUNT} and answer in a sentence. (${chosen.length}/${PROMPT_COUNT})`}
+      subtitle={`Pick ${PROMPT_COUNT} and answer in a sentence. (${chosen.length}/${PROMPT_COUNT})`}
       onContinue={handleContinue}
       continueDisabled={!allAnswered}
       onSkip={onSkip}

@@ -1236,7 +1236,7 @@ export function RoomPage() {
     return (
       <div className="p-6 text-center">
         <p className="text-zinc-400">
-          Can't get in right now — either you haven't been invited, or the owner isn't in this hangout at the
+          Can't get in right now. Either you haven't been invited, or the owner isn't in this hangout at the
           moment. Try again once they're back.
         </p>
         <button onClick={() => navigate('/')} className="mt-2 text-purple-400 hover:underline">
@@ -2095,7 +2095,7 @@ export function RoomPage() {
           {messages.length === 0 && (
             <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
               <span className="text-2xl">💬</span>
-              <p className="text-sm text-zinc-600">No messages yet — say hi!</p>
+              <p className="text-sm text-zinc-600">No messages yet, say hi!</p>
             </div>
           )}
           {messages.map((m) => (

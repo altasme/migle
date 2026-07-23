@@ -6,7 +6,7 @@ export function AuthLanding({ onPick }: { onPick: (mode: 'signup' | 'login') => 
       <div className="flex flex-col items-center gap-1 px-6 pt-10 text-center">
         {/* Wide wordmark with the tagline baked in - sized by width, not
             square. Tagline text lives in the art now, no separate <p>. */}
-        <img src="/logo.png" alt="Mingleverse — A universe where strangers become friends." className="w-[22rem]" />
+        <img src="/logo.png" alt="Mingleverse: A universe where strangers become friends." className="w-[22rem]" />
       </div>
 
       <div className="relative min-h-[140px] flex-1">
