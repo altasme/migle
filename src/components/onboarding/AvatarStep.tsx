@@ -9,20 +9,11 @@ import { OnboardingChrome } from './OnboardingChrome'
 type ShopItem = { id: string; name: string; asset_path: string; price_coins: number | null }
 type Gender = 'male' | 'female'
 
-function styleOf(id: string) {
-  return id.replace(/_\d+$/, '')
-}
-
-// Gender lives entirely in the style id prefix (av_male_/av_female_) -
-// no separate column needed, same reasoning as deriving style from id.
-function genderOf(style: string): Gender {
-  return style.startsWith('av_female_') ? 'female' : 'male'
-}
-
-const STYLE_LABELS: Record<string, string> = {
-  av_male_hoodie: 'Street',
-  av_male_dark: 'Shadow',
-  av_female_pink: 'Sakura',
+// Gender lives entirely in the id prefix (av_male_/av_female_) - no
+// separate column, and no sub-style grouping either: just two flat grids,
+// one per gender.
+function genderOf(id: string): Gender {
+  return id.startsWith('av_female_') ? 'female' : 'male'
 }
 
 // This IS the fun part - people get attached to their character. Reuses
@@ -34,7 +25,6 @@ export function AvatarStep({ onNext }: { onNext: () => void }) {
   const [items, setItems] = useState<ShopItem[]>([])
   const [owned, setOwned] = useState<Set<string>>(new Set())
   const [gender, setGender] = useState<Gender>('male')
-  const [activeStyle, setActiveStyle] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -51,33 +41,21 @@ export function AvatarStep({ onNext }: { onNext: () => void }) {
       setItems(data)
       setOwned(new Set((invRes.data ?? []).map((r) => r.item_id)))
       const pool = ECONOMY_ENABLED ? data : data.filter((i) => i.price_coins === 0)
-      const firstMale = pool.find((i) => genderOf(styleOf(i.id)) === 'male')
+      const firstMale = pool.find((i) => genderOf(i.id) === 'male')
       const first = firstMale ?? pool[0]
-      if (first) {
-        setActiveStyle(styleOf(first.id))
-        setSelectedId(first.id)
-      }
+      if (first) setSelectedId(first.id)
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id])
 
   const visibleItems = ECONOMY_ENABLED ? items : items.filter((i) => i.price_coins === 0 || owned.has(i.id))
-  const stylesForGender = [...new Set(visibleItems.map((i) => styleOf(i.id)))].filter((s) => genderOf(s) === gender)
-  const variants = visibleItems.filter((i) => styleOf(i.id) === activeStyle)
+  const variants = visibleItems.filter((i) => genderOf(i.id) === gender)
   const selected = items.find((i) => i.id === selectedId)
 
   function pickGender(next: Gender) {
     setGender(next)
-    const style = stylesForGenderFor(next)
-    if (style) {
-      setActiveStyle(style)
-      const firstVariant = visibleItems.find((i) => styleOf(i.id) === style)
-      if (firstVariant) setSelectedId(firstVariant.id)
-    }
-  }
-
-  function stylesForGenderFor(g: Gender) {
-    return [...new Set(visibleItems.map((i) => styleOf(i.id)))].find((s) => genderOf(s) === g)
+    const firstVariant = visibleItems.find((i) => genderOf(i.id) === next)
+    if (firstVariant) setSelectedId(firstVariant.id)
   }
 
   async function handleContinue() {
@@ -138,27 +116,7 @@ export function AvatarStep({ onNext }: { onNext: () => void }) {
           ))}
         </div>
 
-        {stylesForGender.length > 1 && (
-          <div className="flex justify-center gap-2">
-            {stylesForGender.map((style) => (
-              <button
-                key={style}
-                onClick={() => {
-                  setActiveStyle(style)
-                  const firstVariant = visibleItems.find((i) => styleOf(i.id) === style)
-                  if (firstVariant) setSelectedId(firstVariant.id)
-                }}
-                className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
-                  activeStyle === style ? 'border-purple-500 bg-purple-600/20 text-white' : 'border-zinc-800 text-zinc-400'
-                }`}
-              >
-                {STYLE_LABELS[style] ?? style}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {stylesForGender.length === 0 && (
+        {variants.length === 0 && (
           <p className="text-center text-sm text-zinc-500">No looks available for this yet. Check back soon!</p>
         )}
 
