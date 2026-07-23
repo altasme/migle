@@ -7,9 +7,16 @@ import { ECONOMY_ENABLED } from '../../lib/featureFlags'
 import { OnboardingChrome } from './OnboardingChrome'
 
 type ShopItem = { id: string; name: string; asset_path: string; price_coins: number | null }
+type Gender = 'male' | 'female'
 
 function styleOf(id: string) {
   return id.replace(/_\d+$/, '')
+}
+
+// Gender lives entirely in the style id prefix (av_male_/av_female_) -
+// no separate column needed, same reasoning as deriving style from id.
+function genderOf(style: string): Gender {
+  return style.startsWith('av_female_') ? 'female' : 'male'
 }
 
 const STYLE_LABELS: Record<string, string> = {
@@ -26,6 +33,7 @@ export function AvatarStep({ onNext }: { onNext: () => void }) {
   const refreshProfile = useAuthStore((s) => s.refreshProfile)
   const [items, setItems] = useState<ShopItem[]>([])
   const [owned, setOwned] = useState<Set<string>>(new Set())
+  const [gender, setGender] = useState<Gender>('male')
   const [activeStyle, setActiveStyle] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -43,18 +51,34 @@ export function AvatarStep({ onNext }: { onNext: () => void }) {
       setItems(data)
       setOwned(new Set((invRes.data ?? []).map((r) => r.item_id)))
       const pool = ECONOMY_ENABLED ? data : data.filter((i) => i.price_coins === 0)
-      if (pool.length > 0) {
-        setActiveStyle(styleOf(pool[0].id))
-        setSelectedId(pool[0].id)
+      const firstMale = pool.find((i) => genderOf(styleOf(i.id)) === 'male')
+      const first = firstMale ?? pool[0]
+      if (first) {
+        setActiveStyle(styleOf(first.id))
+        setSelectedId(first.id)
       }
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id])
 
   const visibleItems = ECONOMY_ENABLED ? items : items.filter((i) => i.price_coins === 0 || owned.has(i.id))
-  const styles = [...new Set(visibleItems.map((i) => styleOf(i.id)))]
+  const stylesForGender = [...new Set(visibleItems.map((i) => styleOf(i.id)))].filter((s) => genderOf(s) === gender)
   const variants = visibleItems.filter((i) => styleOf(i.id) === activeStyle)
   const selected = items.find((i) => i.id === selectedId)
+
+  function pickGender(next: Gender) {
+    setGender(next)
+    const style = stylesForGenderFor(next)
+    if (style) {
+      setActiveStyle(style)
+      const firstVariant = visibleItems.find((i) => styleOf(i.id) === style)
+      if (firstVariant) setSelectedId(firstVariant.id)
+    }
+  }
+
+  function stylesForGenderFor(g: Gender) {
+    return [...new Set(visibleItems.map((i) => styleOf(i.id)))].find((s) => genderOf(s) === g)
+  }
 
   async function handleContinue() {
     if (!selectedId) return
@@ -79,9 +103,9 @@ export function AvatarStep({ onNext }: { onNext: () => void }) {
   return (
     <OnboardingChrome
       step={1}
-      totalSteps={5}
+      totalSteps={6}
       title="Meet your character 🎨"
-      subtitle="This is you in the Mingleverse. Pick a look you vibe with — you can always change it later."
+      subtitle="This is you in the Mingleverse. Pick a look you vibe with. You can always change it later."
       onContinue={handleContinue}
       continueDisabled={!selectedId}
       busy={busy}
@@ -100,12 +124,30 @@ export function AvatarStep({ onNext }: { onNext: () => void }) {
 
         {error && <p className="text-center text-sm text-red-400">{error}</p>}
 
-        {styles.length > 1 && (
+        <div className="flex justify-center gap-2">
+          {(['male', 'female'] as const).map((g) => (
+            <button
+              key={g}
+              onClick={() => pickGender(g)}
+              className={`rounded-full px-5 py-1.5 text-sm font-medium transition-colors ${
+                gender === g ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white' : 'border border-zinc-700 text-zinc-400'
+              }`}
+            >
+              {g === 'male' ? '♂ Male' : '♀ Female'}
+            </button>
+          ))}
+        </div>
+
+        {stylesForGender.length > 1 && (
           <div className="flex justify-center gap-2">
-            {styles.map((style) => (
+            {stylesForGender.map((style) => (
               <button
                 key={style}
-                onClick={() => setActiveStyle(style)}
+                onClick={() => {
+                  setActiveStyle(style)
+                  const firstVariant = visibleItems.find((i) => styleOf(i.id) === style)
+                  if (firstVariant) setSelectedId(firstVariant.id)
+                }}
                 className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
                   activeStyle === style ? 'border-purple-500 bg-purple-600/20 text-white' : 'border-zinc-800 text-zinc-400'
                 }`}
@@ -114,6 +156,10 @@ export function AvatarStep({ onNext }: { onNext: () => void }) {
               </button>
             ))}
           </div>
+        )}
+
+        {stylesForGender.length === 0 && (
+          <p className="text-center text-sm text-zinc-500">No looks available for this yet. Check back soon!</p>
         )}
 
         <div className="flex flex-wrap justify-center gap-3">

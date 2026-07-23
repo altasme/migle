@@ -126,7 +126,7 @@ export function HangoutPanel() {
             <div>
               <p className="font-medium text-white">{myRoom.name}</p>
               {myRoom.topic && <p className="text-xs text-zinc-400">{myRoom.topic}</p>}
-              <p className="text-xs text-zinc-500">Friends only — they can drop in anytime</p>
+              <p className="text-xs text-zinc-500">Friends only. They can drop in anytime</p>
             </div>
             <div className="flex gap-2">
               <button

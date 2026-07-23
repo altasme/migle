@@ -67,7 +67,7 @@ export function UsernameClaim() {
 
   return (
     <div className="mx-auto flex w-full max-w-sm flex-col gap-4 p-6">
-      <h1 className="text-2xl font-semibold text-white">Claim your username</h1>
+      <h1 className="text-2xl font-semibold text-white">What do you want us to call you?</h1>
       <p className="text-sm text-zinc-400">{session?.user.email}</p>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">

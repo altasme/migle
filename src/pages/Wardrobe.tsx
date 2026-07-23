@@ -22,6 +22,14 @@ function styleOf(id: string) {
   return id.replace(/_\d+$/, '')
 }
 
+type Gender = 'male' | 'female'
+
+// Gender lives entirely in the style id prefix (av_male_/av_female_) - no
+// separate column needed, same reasoning as deriving style from id.
+function genderOf(style: string): Gender {
+  return style.startsWith('av_female_') ? 'female' : 'male'
+}
+
 const STYLE_LABELS: Record<string, string> = {
   av_male_hoodie: 'Street',
   av_male_dark: 'Shadow',
@@ -39,6 +47,7 @@ export function Wardrobe() {
   const [equipped, setEquipped] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [gender, setGender] = useState<Gender>('male')
   const [activeStyle, setActiveStyle] = useState<string | null>(null)
 
   useEffect(() => {
@@ -53,11 +62,17 @@ export function Wardrobe() {
     if (activeStyle || items.length === 0) return
     const currentBody = profile?.equipped?.body
     if (currentBody) {
-      setActiveStyle(styleOf(currentBody))
+      const style = styleOf(currentBody)
+      setGender(genderOf(style))
+      setActiveStyle(style)
       return
     }
     const fallbackPool = ECONOMY_ENABLED ? items : items.filter((i) => i.price_coins === 0 || owned.has(i.id))
-    if (fallbackPool.length > 0) setActiveStyle(styleOf(fallbackPool[0].id))
+    if (fallbackPool.length > 0) {
+      const style = styleOf(fallbackPool[0].id)
+      setGender(genderOf(style))
+      setActiveStyle(style)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items])
 
@@ -102,8 +117,14 @@ export function Wardrobe() {
   // Economy hidden for now: don't offer looks that would silently spend
   // coins with no visible price - only free or already-owned looks show.
   const visibleItems = ECONOMY_ENABLED ? items : items.filter((i) => i.price_coins === 0 || owned.has(i.id))
-  const styles = [...new Set(visibleItems.map((i) => styleOf(i.id)))]
+  const styles = [...new Set(visibleItems.map((i) => styleOf(i.id)))].filter((s) => genderOf(s) === gender)
   const variants = visibleItems.filter((i) => styleOf(i.id) === activeStyle)
+
+  function pickGender(next: Gender) {
+    setGender(next)
+    const style = [...new Set(visibleItems.map((i) => styleOf(i.id)))].find((s) => genderOf(s) === next)
+    if (style) setActiveStyle(style)
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-6 p-4">
@@ -126,6 +147,23 @@ export function Wardrobe() {
       </div>
 
       {error && <p className="text-center text-sm text-red-400">{error}</p>}
+
+      <section>
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Gender</h2>
+        <div className="flex gap-2">
+          {(['male', 'female'] as const).map((g) => (
+            <button
+              key={g}
+              onClick={() => pickGender(g)}
+              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                gender === g ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white' : 'border border-zinc-700 text-zinc-400'
+              }`}
+            >
+              {g === 'male' ? '♂ Male' : '♀ Female'}
+            </button>
+          ))}
+        </div>
+      </section>
 
       <section>
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Style</h2>
