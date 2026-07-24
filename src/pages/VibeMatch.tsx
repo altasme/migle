@@ -15,8 +15,10 @@ import {
   getMyVoiceMinglesRemaining,
   fetchMatchMessages,
   sendMatchMessage,
+  DEFAULT_MATCH_PREFERENCES,
   type MatchSession,
   type MatchMessage,
+  type MatchPreferences,
 } from '../lib/match'
 
 type Phase = 'select' | 'waiting' | 'matched' | 'partner-left' | 'time-up' | 'no-match'
@@ -71,6 +73,10 @@ export function VibeMatch() {
   const [justBecameFriends, setJustBecameFriends] = useState(false)
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
   const [pendingMode, setPendingMode] = useState<'text' | 'voice'>('text')
+  const [pendingPrefs, setPendingPrefs] = useState<MatchPreferences>(DEFAULT_MATCH_PREFERENCES)
+  const [genderPref, setGenderPref] = useState<'any' | 'male' | 'female'>('any')
+  const [ageMin, setAgeMin] = useState(18)
+  const [ageMax, setAgeMax] = useState(69)
   const [voiceStatus, setVoiceStatus] = useState<'connecting' | 'connected' | 'error'>('connecting')
   const [voiceError, setVoiceError] = useState<string | null>(null)
   const [isMuted, setIsMuted] = useState(false)
@@ -179,12 +185,13 @@ export function VibeMatch() {
     }
   }
 
-  async function startSearching(mode: 'text' | 'voice' = pendingMode) {
+  async function startSearching(mode: 'text' | 'voice' = pendingMode, prefs: MatchPreferences = pendingPrefs) {
     setPendingMode(mode)
+    setPendingPrefs(prefs)
     setError(null)
     setPhase('waiting')
     try {
-      const found = await requestMatch(mode)
+      const found = await requestMatch(mode, prefs)
       if (found) enterMatch(found)
     } catch (err) {
       if (err instanceof Error && err.message.includes('voice_limit_reached')) {
@@ -210,7 +217,7 @@ export function VibeMatch() {
     if (phase !== 'waiting') return
     const id = setInterval(async () => {
       try {
-        const found = await requestMatch(pendingMode)
+        const found = await requestMatch(pendingMode, pendingPrefs)
         if (found) enterMatch(found)
       } catch {
         // Transient errors just get retried on the next tick.
@@ -218,7 +225,7 @@ export function VibeMatch() {
     }, WAITING_POLL_MS)
     return () => clearInterval(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, userId, pendingMode])
+  }, [phase, userId, pendingMode, pendingPrefs])
 
   // Nobody to pair with after WAITING_TIMEOUT_SEC — stop polling and ask
   // instead of leaving the spinner running forever. Explicitly drops the
@@ -505,9 +512,60 @@ export function VibeMatch() {
           <p className="mt-1 text-sm text-zinc-400">Meet someone new, right now.</p>
         </div>
         {error && <p className="text-center text-sm text-red-400">{error}</p>}
+
+        <div className="flex flex-col gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Match with</p>
+            <div className="flex gap-2">
+              {(['any', 'male', 'female'] as const).map((g) => (
+                <button
+                  key={g}
+                  onClick={() => setGenderPref(g)}
+                  className={`flex-1 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                    genderPref === g
+                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+                      : 'border border-zinc-700 text-zinc-400'
+                  }`}
+                >
+                  {g === 'any' ? 'Anyone' : g === 'male' ? '♂ Male' : '♀ Female'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              Age range ({ageMin}–{ageMax})
+            </p>
+            <div className="flex flex-col gap-2">
+              <input
+                type="range"
+                min={18}
+                max={69}
+                value={ageMin}
+                onChange={(e) => setAgeMin(Math.min(Number(e.target.value), ageMax))}
+                className="w-full accent-purple-500"
+              />
+              <input
+                type="range"
+                min={18}
+                max={69}
+                value={ageMax}
+                onChange={(e) => setAgeMax(Math.max(Number(e.target.value), ageMin))}
+                className="w-full accent-pink-500"
+              />
+            </div>
+          </div>
+        </div>
+
         <div className="flex w-full flex-col gap-3">
           <button
-            onClick={() => startSearching('text')}
+            onClick={() =>
+              startSearching('text', {
+                genderPref: genderPref === 'any' ? null : genderPref,
+                minAge: ageMin,
+                maxAge: ageMax,
+              })
+            }
             className="flex items-center gap-4 rounded-2xl bg-gradient-to-br from-purple-600 to-pink-600 p-4 text-left shadow-lg shadow-purple-950/40 transition-transform active:scale-[0.97]"
           >
             <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-black/20 text-2xl">
@@ -519,7 +577,13 @@ export function VibeMatch() {
             </span>
           </button>
           <button
-            onClick={() => startSearching('voice')}
+            onClick={() =>
+              startSearching('voice', {
+                genderPref: genderPref === 'any' ? null : genderPref,
+                minAge: ageMin,
+                maxAge: ageMax,
+              })
+            }
             disabled={voiceMinglesLeft === 0}
             className="flex items-center gap-4 rounded-2xl border border-purple-600/60 bg-zinc-900/60 p-4 text-left transition-transform active:scale-[0.97] disabled:cursor-not-allowed disabled:border-zinc-800 disabled:opacity-50"
           >
