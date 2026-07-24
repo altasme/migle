@@ -19,4 +19,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in .env')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    // PKCE with detectSessionInUrl off: Google OAuth's redirect comes back
+    // through a native deep link (see lib/googleAuth.ts), not the WebView's
+    // own address bar, so there's no URL for supabase-js to auto-detect a
+    // session in - the deep link handler exchanges the code explicitly.
+    flowType: 'pkce',
+    detectSessionInUrl: false,
+  },
+})

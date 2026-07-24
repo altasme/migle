@@ -21,6 +21,7 @@ import { Friends } from './pages/Friends'
 import { FriendProfile } from './pages/FriendProfile'
 import { BlockedUsers } from './pages/BlockedUsers'
 import { AdminReports } from './pages/AdminReports'
+import { registerGoogleAuthDeepLink } from './lib/googleAuth'
 
 function Centered({ children }: { children: ReactNode }) {
   return <div className="flex min-h-svh items-center justify-center">{children}</div>
@@ -32,6 +33,15 @@ function AppShell() {
   useEffect(() => {
     init()
   }, [init])
+
+  // Registered once at the root regardless of auth state - the Google
+  // redirect can land while the user is still on the sign-in screen.
+  useEffect(() => {
+    const handle = registerGoogleAuthDeepLink()
+    return () => {
+      handle.then((h) => h.remove())
+    }
+  }, [])
 
   if (loading) {
     return <SplashScreen />
