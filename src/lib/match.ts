@@ -22,10 +22,26 @@ export type MatchMessage = {
   created_at: string
 }
 
+export type MatchPreferences = {
+  genderPref: 'male' | 'female' | null
+  minAge: number
+  maxAge: number
+}
+
+export const DEFAULT_MATCH_PREFERENCES: MatchPreferences = { genderPref: null, minAge: 18, maxAge: 69 }
+
 // Both "join the queue" and "poll for a pairing" go through this one call.
 // Never throws for "still waiting" — that's a null return, not an error.
-export async function requestMatch(mode: 'text' | 'voice'): Promise<MatchSession | null> {
-  const { data, error } = await supabase.rpc('request_match', { p_mode: mode })
+export async function requestMatch(
+  mode: 'text' | 'voice',
+  prefs: MatchPreferences = DEFAULT_MATCH_PREFERENCES,
+): Promise<MatchSession | null> {
+  const { data, error } = await supabase.rpc('request_match', {
+    p_mode: mode,
+    p_gender_pref: prefs.genderPref,
+    p_min_age: prefs.minAge,
+    p_max_age: prefs.maxAge,
+  })
   if (error) throw error
   // request_match() is declared to return a match_sessions row, and does
   // `return null;` in plpgsql for "no partner yet." A plpgsql function
