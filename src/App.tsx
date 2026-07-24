@@ -6,6 +6,7 @@ import { SplashScreen } from './components/SplashScreen'
 import { UsernameClaim } from './components/UsernameClaim'
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow'
 import { AppLayout } from './components/AppLayout'
+import { CreatorLetter } from './components/CreatorLetter'
 import { Home } from './pages/Home'
 import { Rooms } from './pages/Rooms'
 import { Profile } from './pages/Profile'
@@ -53,7 +54,9 @@ function AppShell() {
   }
 
   return (
-    <Routes>
+    <>
+      <CreatorLetter />
+      <Routes>
       <Route
         path="/"
         element={
@@ -104,7 +107,8 @@ function AppShell() {
       <Route path="/following" element={<FollowList kind="following" />} />
       <Route path="/blocked" element={<BlockedUsers />} />
       <Route path="/admin/reports" element={<AdminReports />} />
-    </Routes>
+      </Routes>
+    </>
   )
 }
 
