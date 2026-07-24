@@ -47,19 +47,30 @@ export function Wardrobe() {
 
   useEffect(() => {
     if (genderInitialized || items.length === 0) return
-    const currentBody = profile?.equipped?.body
-    if (currentBody) {
-      setGender(genderOf(currentBody))
+    if (profile?.gender) {
+      setGender(profile.gender)
       setGenderInitialized(true)
       return
     }
+    // Legacy account from before gender was tracked - infer it from
+    // whatever's currently equipped (or the first available look) and
+    // backfill it, so it becomes a locked choice going forward like
+    // everyone else's.
+    const currentBody = profile?.equipped?.body
     const fallbackPool = ECONOMY_ENABLED ? items : items.filter((i) => i.price_coins === 0 || owned.has(i.id))
-    if (fallbackPool.length > 0) {
-      setGender(genderOf(fallbackPool[0].id))
-      setGenderInitialized(true)
+    const inferred = currentBody ? genderOf(currentBody) : genderOf(fallbackPool[0]?.id ?? 'av_male_01')
+    setGender(inferred)
+    setGenderInitialized(true)
+    const userId = session?.user.id
+    if (userId) {
+      supabase
+        .from('profiles')
+        .update({ gender: inferred })
+        .eq('id', userId)
+        .then(() => refreshProfile())
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items])
+  }, [items, profile?.gender])
 
   async function load() {
     const userId = session!.user.id
@@ -128,19 +139,9 @@ export function Wardrobe() {
 
       <section>
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Gender</h2>
-        <div className="flex gap-2">
-          {(['male', 'female'] as const).map((g) => (
-            <button
-              key={g}
-              onClick={() => setGender(g)}
-              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                gender === g ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white' : 'border border-zinc-700 text-zinc-400'
-              }`}
-            >
-              {g === 'male' ? '♂ Male' : '♀ Female'}
-            </button>
-          ))}
-        </div>
+        <span className="inline-block rounded-full bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-1.5 text-sm font-medium text-white">
+          {gender === 'male' ? '♂ Male' : '♀ Female'}
+        </span>
       </section>
 
       <section>

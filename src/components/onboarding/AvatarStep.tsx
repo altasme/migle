@@ -29,6 +29,12 @@ export function AvatarStep({ onNext }: { onNext: () => void }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Gender is a one-time choice: once the profile has one on record, this
+  // step (and Wardrobe) locks to it - "male" or "female" avatars only, no
+  // switching later. Undefined/null here just means a brand-new signup who
+  // hasn't picked yet.
+  const genderLocked = profile?.gender != null
+
   useEffect(() => {
     ;(async () => {
       const userId = profile?.id
@@ -41,8 +47,10 @@ export function AvatarStep({ onNext }: { onNext: () => void }) {
       setItems(data)
       setOwned(new Set((invRes.data ?? []).map((r) => r.item_id)))
       const pool = ECONOMY_ENABLED ? data : data.filter((i) => i.price_coins === 0)
-      const firstMale = pool.find((i) => genderOf(i.id) === 'male')
-      const first = firstMale ?? pool[0]
+      const startGender: Gender = profile?.gender ?? 'male'
+      setGender(startGender)
+      const firstMatch = pool.find((i) => genderOf(i.id) === startGender)
+      const first = firstMatch ?? pool[0]
       if (first) setSelectedId(first.id)
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -53,6 +61,7 @@ export function AvatarStep({ onNext }: { onNext: () => void }) {
   const selected = items.find((i) => i.id === selectedId)
 
   function pickGender(next: Gender) {
+    if (genderLocked) return
     setGender(next)
     const firstVariant = visibleItems.find((i) => genderOf(i.id) === next)
     if (firstVariant) setSelectedId(firstVariant.id)
@@ -67,8 +76,12 @@ export function AvatarStep({ onNext }: { onNext: () => void }) {
         const { error } = await supabase.rpc('buy_cosmetic', { p_item_id: selectedId })
         if (error) throw error
       }
-      const { error } = await supabase.rpc('equip', { p_equipped: { body: selectedId } })
-      if (error) throw error
+      const { error: equipError } = await supabase.rpc('equip', { p_equipped: { body: selectedId } })
+      if (equipError) throw equipError
+      if (!genderLocked) {
+        const { error: genderError } = await supabase.from('profiles').update({ gender }).eq('id', profile!.id)
+        if (genderError) throw genderError
+      }
       await refreshProfile()
       onNext()
     } catch (err) {
@@ -102,19 +115,27 @@ export function AvatarStep({ onNext }: { onNext: () => void }) {
 
         {error && <p className="text-center text-sm text-red-400">{error}</p>}
 
-        <div className="flex justify-center gap-2">
-          {(['male', 'female'] as const).map((g) => (
-            <button
-              key={g}
-              onClick={() => pickGender(g)}
-              className={`rounded-full px-5 py-1.5 text-sm font-medium transition-colors ${
-                gender === g ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white' : 'border border-zinc-700 text-zinc-400'
-              }`}
-            >
-              {g === 'male' ? '♂ Male' : '♀ Female'}
-            </button>
-          ))}
-        </div>
+        {genderLocked ? (
+          <div className="flex justify-center">
+            <span className="rounded-full bg-gradient-to-r from-purple-600 to-pink-600 px-5 py-1.5 text-sm font-medium text-white">
+              {gender === 'male' ? '♂ Male' : '♀ Female'}
+            </span>
+          </div>
+        ) : (
+          <div className="flex justify-center gap-2">
+            {(['male', 'female'] as const).map((g) => (
+              <button
+                key={g}
+                onClick={() => pickGender(g)}
+                className={`rounded-full px-5 py-1.5 text-sm font-medium transition-colors ${
+                  gender === g ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white' : 'border border-zinc-700 text-zinc-400'
+                }`}
+              >
+                {g === 'male' ? '♂ Male' : '♀ Female'}
+              </button>
+            ))}
+          </div>
+        )}
 
         {variants.length === 0 && (
           <p className="text-center text-sm text-zinc-500">No looks available for this yet. Check back soon!</p>
