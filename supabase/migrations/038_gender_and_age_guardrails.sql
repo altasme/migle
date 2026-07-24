@@ -1,9 +1,15 @@
 -- Age guardrail: reject anyone claiming to be 70+, mirroring the existing
 -- adults_only (18+) check already enforced on this table. This is a new,
 -- additive constraint only - adults_only is untouched.
+-- NOT VALID: a plain ADD CONSTRAINT validates every existing row up front
+-- and fails the whole migration if even one predates this rule (e.g. an
+-- old test account). NOT VALID skips that retroactive check but still
+-- applies in full to every signup and every future update from here on -
+-- exactly the guardrail we want going forward, without needing to hunt
+-- down and fix historical rows first.
 alter table profiles drop constraint if exists profiles_max_age_check;
 alter table profiles
-  add constraint profiles_max_age_check check (birthdate > current_date - interval '70 years');
+  add constraint profiles_max_age_check check (birthdate > current_date - interval '70 years') not valid;
 
 -- Gender is a one-time identity choice made in the avatar step (Male/Female
 -- toggle), not just a UI filter - stored so it can be shown on the profile
