@@ -19,6 +19,16 @@ import {
 
 const BIO_MAX = 255
 
+function calculateAge(birthdate: string): number {
+  const today = new Date()
+  const dob = new Date(birthdate)
+  let age = today.getFullYear() - dob.getFullYear()
+  const hadBirthdayThisYear =
+    today.getMonth() > dob.getMonth() || (today.getMonth() === dob.getMonth() && today.getDate() >= dob.getDate())
+  if (!hadBirthdayThisYear) age--
+  return age
+}
+
 type ActiveRelationship = {
   partnerUsername: string
   cp_score: number
@@ -171,6 +181,13 @@ export function Profile() {
           />
         </span>
         <h1 className="text-2xl font-bold text-white">{profile?.username}</h1>
+        {profile && (profile.birthdate || profile.gender) && (
+          <p className="text-sm text-zinc-400">
+            {profile.birthdate && `${calculateAge(profile.birthdate)} years old`}
+            {profile.birthdate && profile.gender && ' · '}
+            {profile.gender && (profile.gender === 'male' ? '♂ Male' : '♀ Female')}
+          </p>
+        )}
         <Link
           to="/friends"
           className="flex items-center gap-1.5 rounded-full border border-zinc-800 bg-zinc-900/80 px-4 py-1.5 text-sm"
