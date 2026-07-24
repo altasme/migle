@@ -21,6 +21,7 @@ export function SignUpFlow({ onBack, onSwitchToLogin }: { onBack: () => void; on
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [resent, setResent] = useState(false)
+  const [autoConfirmed, setAutoConfirmed] = useState(false)
 
   function handleEmailSubmit(e: FormEvent) {
     e.preventDefault()
@@ -50,12 +51,23 @@ export function SignUpFlow({ onBack, onSwitchToLogin }: { onBack: () => void; on
     }
     setError(null)
     setSubmitting(true)
-    const { error } = await supabase.auth.signUp({ email, password })
-    setSubmitting(false)
+    const { data, error } = await supabase.auth.signUp({ email, password })
     if (error) {
+      setSubmitting(false)
       setError(error.message)
       return
     }
+    if (data.session) {
+      // Supabase's "Confirm email" setting is off on this project, so
+      // signUp() logged us in immediately instead of requiring the link
+      // first. The whole point of this screen is "verify, then log in" as
+      // two separate steps regardless of that setting, so sign back out
+      // rather than let the app silently continue straight past sign-up -
+      // that's the bug that made the verification screen never appear.
+      await supabase.auth.signOut()
+      setAutoConfirmed(true)
+    }
+    setSubmitting(false)
     setStep('sent')
   }
 
@@ -165,21 +177,31 @@ export function SignUpFlow({ onBack, onSwitchToLogin }: { onBack: () => void; on
       {step === 'sent' && (
         <div className="flex flex-col items-center gap-3 text-center">
           <span className="text-4xl">📧</span>
-          <h1 className="text-xl font-semibold text-white">Verify your email</h1>
+          <h1 className="text-xl font-semibold text-white">
+            {autoConfirmed ? 'Account created' : 'Verify your email'}
+          </h1>
           <p className="text-sm text-zinc-400">
-            We sent a verification email to <span className="text-white">{email}</span>. Tap the link inside to
-            activate your account, then log in.
+            {autoConfirmed ? (
+              <>Your account is ready. Log in with <span className="text-white">{email}</span> to get started.</>
+            ) : (
+              <>
+                We sent a verification email to <span className="text-white">{email}</span>. Tap the link inside to
+                activate your account, then log in.
+              </>
+            )}
           </p>
           {error && <p className="text-sm text-red-400">{error}</p>}
           {resent && <p className="text-sm text-emerald-400">Verification email resent.</p>}
-          <button
-            type="button"
-            onClick={handleResend}
-            disabled={submitting}
-            className="text-sm text-purple-400 hover:underline disabled:opacity-50"
-          >
-            {submitting ? 'Sending…' : "Didn't get it? Resend"}
-          </button>
+          {!autoConfirmed && (
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={submitting}
+              className="text-sm text-purple-400 hover:underline disabled:opacity-50"
+            >
+              {submitting ? 'Sending…' : "Didn't get it? Resend"}
+            </button>
+          )}
           <button
             type="button"
             onClick={onSwitchToLogin}

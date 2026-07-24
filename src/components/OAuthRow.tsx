@@ -1,9 +1,7 @@
-import { useState } from 'react'
-import { signInWithGoogle } from '../lib/googleAuth'
-
 // Visual-only for now — buttons are disabled until real OAuth credentials
 // are wired up per provider. Shows "coming soon" instead of doing nothing
-// silently on tap.
+// silently on tap. Google lives as the primary "Continue with Google"
+// button on AuthLanding instead of here, since it's the lead sign-up path.
 function IconButton({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <button
@@ -18,54 +16,10 @@ function IconButton({ label, children }: { label: string; children: React.ReactN
 }
 
 export function OAuthRow() {
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function handleGoogle() {
-    setError(null)
-    setBusy(true)
-    try {
-      await signInWithGoogle()
-      // Success continues via the appUrlOpen deep-link handler in App.tsx,
-      // which exchanges the code for a session - onAuthStateChange then
-      // takes it from there, same as any other sign-in.
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Google sign-in failed.')
-      setBusy(false)
-    }
-  }
-
   return (
     <div className="flex flex-col items-center gap-2">
-      <p className="text-xs text-zinc-500">or continue with</p>
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      <p className="text-xs text-zinc-500">more options coming soon</p>
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={handleGoogle}
-          disabled={busy}
-          title="Sign in with Google"
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-sm transition-transform active:scale-95 disabled:opacity-50"
-        >
-          <svg viewBox="0 0 24 24" className="h-5 w-5">
-            <path
-              fill="currentColor"
-              d="M21.6 12.23c0-.68-.06-1.32-.17-1.94H12v3.9h5.4a4.62 4.62 0 0 1-2 3.03v2.5h3.24c1.9-1.75 2.96-4.33 2.96-7.49z"
-            />
-            <path
-              fill="currentColor"
-              d="M12 22c2.7 0 4.96-.9 6.62-2.43l-3.24-2.5c-.9.6-2.05.96-3.38.96-2.6 0-4.8-1.75-5.6-4.11H3.05v2.58A10 10 0 0 0 12 22z"
-            />
-            <path
-              fill="currentColor"
-              d="M6.4 13.92a5.99 5.99 0 0 1 0-3.84V7.5H3.05a10 10 0 0 0 0 9l3.35-2.58z"
-            />
-            <path
-              fill="currentColor"
-              d="M12 5.98c1.47 0 2.79.5 3.83 1.49l2.87-2.87A9.96 9.96 0 0 0 12 2a10 10 0 0 0-8.95 5.5l3.35 2.58c.8-2.36 3-4.1 5.6-4.1z"
-            />
-          </svg>
-        </button>
         <IconButton label="Apple">
           <svg viewBox="0 0 24 24" className="h-5 w-5">
             <path
