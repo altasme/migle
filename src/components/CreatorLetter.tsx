@@ -35,9 +35,8 @@ export function CreatorLetter() {
 
         <div className="overflow-y-auto p-6 pt-8">
           <div className="mb-4 flex justify-center">
-            {/* TODO: swap for the creator's chibi portrait once the file is available */}
-            <div className="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-purple-700 to-pink-600 text-4xl shadow-lg shadow-purple-950/40 ring-2 ring-purple-500/30">
-              💜
+            <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-purple-700 to-pink-600 shadow-lg shadow-purple-950/40 ring-2 ring-purple-500/30">
+              <img src="/creator-portrait.png" alt="Van, creator of Mingleverse" className="h-full w-full object-cover" />
             </div>
           </div>
 
