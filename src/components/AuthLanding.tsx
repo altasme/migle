@@ -1,21 +1,34 @@
 import { useState } from 'react'
 import { signInWithGoogle } from '../lib/googleAuth'
+import { signInWithFacebook } from '../lib/facebookAuth'
 import { OAuthRow } from './OAuthRow'
 
-export function AuthLanding({ onPick }: { onPick: (mode: 'signup' | 'login') => void }) {
-  const [busy, setBusy] = useState(false)
+export function AuthLanding() {
+  const [busy, setBusy] = useState<'google' | 'facebook' | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   async function handleGoogle() {
     setError(null)
-    setBusy(true)
+    setBusy('google')
     try {
       await signInWithGoogle()
       // Success: signInWithIdToken() already created the session, and
       // authStore's onAuthStateChange listener picks it up automatically.
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Google sign-in failed.')
-      setBusy(false)
+      setBusy(null)
+    }
+  }
+
+  async function handleFacebook() {
+    setError(null)
+    setBusy('facebook')
+    try {
+      await signInWithFacebook()
+      // Success continues via the appUrlOpen deep-link handler in App.tsx.
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Facebook sign-in failed.')
+      setBusy(null)
     }
   }
 
@@ -38,12 +51,10 @@ export function AuthLanding({ onPick }: { onPick: (mode: 'signup' | 'login') => 
       <div className="flex flex-col gap-3 px-6 pb-10">
         {error && <p className="text-center text-sm text-red-400">{error}</p>}
 
-        {/* Google is the primary, lead sign-up path - full-width button up
-            top rather than a small icon buried below the email options. */}
         <button
           type="button"
           onClick={handleGoogle}
-          disabled={busy}
+          disabled={busy !== null}
           className="flex items-center justify-center gap-2.5 rounded-full bg-white px-4 py-3 text-center font-semibold text-zinc-900 shadow-lg shadow-black/30 transition-transform active:scale-[0.98] disabled:opacity-60"
         >
           <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0">
@@ -61,28 +72,19 @@ export function AuthLanding({ onPick }: { onPick: (mode: 'signup' | 'login') => 
               d="M12 5.98c1.47 0 2.79.5 3.83 1.49l2.87-2.87A9.96 9.96 0 0 0 12 2a10 10 0 0 0-8.95 5.5l3.35 2.58c.8-2.36 3-4.1 5.6-4.1z"
             />
           </svg>
-          {busy ? 'Opening Google…' : 'Continue with Google'}
+          {busy === 'google' ? 'Opening Google…' : 'Continue with Google'}
         </button>
-
-        <div className="flex items-center gap-3 py-1">
-          <div className="h-px flex-1 bg-white/10" />
-          <span className="text-xs text-zinc-500">or use email</span>
-          <div className="h-px flex-1 bg-white/10" />
-        </div>
 
         <button
           type="button"
-          onClick={() => onPick('signup')}
-          className="rounded-full bg-purple-600 px-4 py-3 text-center font-semibold text-white shadow-lg shadow-purple-900/40"
+          onClick={handleFacebook}
+          disabled={busy !== null}
+          className="flex items-center justify-center gap-2.5 rounded-full bg-[#1877F2] px-4 py-3 text-center font-semibold text-white shadow-lg shadow-black/30 transition-transform active:scale-[0.98] disabled:opacity-60"
         >
-          Create Account
-        </button>
-        <button
-          type="button"
-          onClick={() => onPick('login')}
-          className="rounded-full bg-white/10 px-4 py-3 text-center font-semibold text-white backdrop-blur-sm"
-        >
-          Log In
+          <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0" fill="currentColor">
+            <path d="M22 12.06C22 6.5 17.52 2 12 2S2 6.5 2 12.06C2 17.08 5.66 21.23 10.44 22v-7.03H7.9v-2.91h2.54V9.85c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.44 2.91h-2.34V22C18.34 21.23 22 17.08 22 12.06z" />
+          </svg>
+          {busy === 'facebook' ? 'Opening Facebook…' : 'Continue with Facebook'}
         </button>
 
         <OAuthRow />

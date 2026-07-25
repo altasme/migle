@@ -1,7 +1,7 @@
 // Visual-only for now — buttons are disabled until real OAuth credentials
 // are wired up per provider. Shows "coming soon" instead of doing nothing
-// silently on tap. Google lives as the primary "Continue with Google"
-// button on AuthLanding instead of here, since it's the lead sign-up path.
+// silently on tap. Google and Facebook are full-width primary buttons on
+// AuthLanding instead of here, since they're real, working sign-in paths.
 function IconButton({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <button

@@ -1,7 +1,8 @@
 import { useEffect, type ReactNode } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
-import { AuthGate } from './components/AuthGate'
+import { AuthLanding } from './components/AuthLanding'
+import { registerOAuthDeepLink } from './lib/facebookAuth'
 import { SplashScreen } from './components/SplashScreen'
 import { UsernameClaim } from './components/UsernameClaim'
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow'
@@ -34,12 +35,21 @@ function AppShell() {
     init()
   }, [init])
 
+  // Registered once at the root regardless of auth state - the OAuth
+  // redirect can land while the user is still on the sign-in screen.
+  useEffect(() => {
+    const handle = registerOAuthDeepLink()
+    return () => {
+      handle.then((h) => h.remove())
+    }
+  }, [])
+
   if (loading) {
     return <SplashScreen />
   }
 
   if (!session) {
-    return <AuthGate />
+    return <AuthLanding />
   }
 
   if (!profile) {
