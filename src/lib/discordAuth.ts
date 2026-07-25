@@ -5,17 +5,19 @@ import { supabase } from './supabase'
 // com.mingleverse.app, host auth-callback) AND be added as a Redirect URL
 // in the Supabase dashboard (Authentication -> URL Configuration) - Supabase
 // rejects a redirect to any URL not on that allowlist. Shared with any other
-// provider using this same OAuth-redirect approach (Discord, if added later).
+// provider using this same OAuth-redirect approach.
 export const OAUTH_REDIRECT_URL = 'com.mingleverse.app://auth-callback'
 
-// Facebook's native Android SDK doesn't hand back an ID token the way
-// Google's Credential Manager does (its Limited Login OIDC token is
-// effectively iOS-only), so there's no clean native path here - this opens
-// the system browser for Facebook's consent screen and catches the
-// redirect back in as a deep link (see registerOAuthDeepLink below).
-export async function signInWithFacebook() {
+// Discord (like Facebook) has no native Android SDK that hands Supabase a
+// usable token the way Google's Credential Manager does, so this opens the
+// system browser for Discord's consent screen and catches the redirect
+// back in as a deep link (see registerOAuthDeepLink below). Chosen over
+// Facebook: Discord's OAuth app just needs a Client ID/Secret from their
+// developer portal, no business verification or app review required for
+// basic login scopes.
+export async function signInWithDiscord() {
   const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'facebook',
+    provider: 'discord',
     options: {
       redirectTo: OAUTH_REDIRECT_URL,
       skipBrowserRedirect: true,

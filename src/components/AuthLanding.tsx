@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { signInWithGoogle } from '../lib/googleAuth'
-import { signInWithFacebook } from '../lib/facebookAuth'
+import { signInWithDiscord } from '../lib/discordAuth'
 import { OAuthRow } from './OAuthRow'
 
 export function AuthLanding() {
-  const [busy, setBusy] = useState<'google' | 'facebook' | null>(null)
+  const [busy, setBusy] = useState<'google' | 'discord' | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   async function handleGoogle() {
@@ -20,14 +20,14 @@ export function AuthLanding() {
     }
   }
 
-  async function handleFacebook() {
+  async function handleDiscord() {
     setError(null)
-    setBusy('facebook')
+    setBusy('discord')
     try {
-      await signInWithFacebook()
+      await signInWithDiscord()
       // Success continues via the appUrlOpen deep-link handler in App.tsx.
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Facebook sign-in failed.')
+      setError(err instanceof Error ? err.message : 'Discord sign-in failed.')
       setBusy(null)
     }
   }
@@ -77,14 +77,14 @@ export function AuthLanding() {
 
         <button
           type="button"
-          onClick={handleFacebook}
+          onClick={handleDiscord}
           disabled={busy !== null}
-          className="flex items-center justify-center gap-2.5 rounded-full bg-[#1877F2] px-4 py-3 text-center font-semibold text-white shadow-lg shadow-black/30 transition-transform active:scale-[0.98] disabled:opacity-60"
+          className="flex items-center justify-center gap-2.5 rounded-full bg-[#5865F2] px-4 py-3 text-center font-semibold text-white shadow-lg shadow-black/30 transition-transform active:scale-[0.98] disabled:opacity-60"
         >
           <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0" fill="currentColor">
-            <path d="M22 12.06C22 6.5 17.52 2 12 2S2 6.5 2 12.06C2 17.08 5.66 21.23 10.44 22v-7.03H7.9v-2.91h2.54V9.85c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.44 2.91h-2.34V22C18.34 21.23 22 17.08 22 12.06z" />
+            <path d="M19.5 5.4A17.6 17.6 0 0 0 15.3 4c-.2.4-.4.9-.6 1.3a16.3 16.3 0 0 0-4.9 0A9 9 0 0 0 9.2 4c-1.4.2-2.8.7-4.2 1.4C2.4 9.3 1.7 13 2 16.7a17.7 17.7 0 0 0 5.4 2.7c.4-.6.8-1.2 1.1-1.9-.6-.2-1.2-.5-1.7-.9l.4-.3c3.4 1.6 7 1.6 10.3 0l.4.3c-.5.4-1.1.7-1.7.9.3.7.7 1.3 1.1 1.9a17.6 17.6 0 0 0 5.4-2.7c.4-4.3-.7-8-2.7-11.3zM9 14.6c-.9 0-1.7-.9-1.7-2s.7-2 1.7-2 1.7.9 1.7 2-.8 2-1.7 2zm6 0c-.9 0-1.7-.9-1.7-2s.7-2 1.7-2 1.7.9 1.7 2-.8 2-1.7 2z" />
           </svg>
-          {busy === 'facebook' ? 'Opening Facebook…' : 'Continue with Facebook'}
+          {busy === 'discord' ? 'Opening Discord…' : 'Continue with Discord'}
         </button>
 
         <OAuthRow />
