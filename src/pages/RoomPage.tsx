@@ -224,6 +224,16 @@ export function RoomPage() {
   const chatEndRef = useRef<HTMLDivElement | null>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const hasJoinedRef = useRef(false)
+  // Set at the start of a voluntary leaveRoom() - deleting our own
+  // room_members row makes `me` disappear from `members` exactly like
+  // being kicked does, so the "ejected" effect below can't otherwise tell
+  // the two apart. Left unguarded, it fired on ordinary leaves too,
+  // re-rendering into the ejected screen (a completely different branch)
+  // while the YouTube player's container was still live - ripping its DOM
+  // out from under it before the real unmount cleanup ever got a chance
+  // to run cleanly, which was the actual source of the leave-during-watch-
+  // party crash (not fully fixed by only changing the unmount cleanup).
+  const leavingRef = useRef(false)
   const musicAudioElRef = useRef<HTMLAudioElement | null>(null)
   const musicTrackRef = useRef<MediaStreamTrack | null>(null)
   const musicObjectUrlRef = useRef<string | null>(null)
@@ -550,7 +560,7 @@ export function RoomPage() {
   // Owner kicked us: we joined successfully at some point but no longer
   // appear on the roster. Disconnect and bounce home.
   useEffect(() => {
-    if (!hasJoinedRef.current || !userId) return
+    if (!hasJoinedRef.current || !userId || leavingRef.current) return
     if (!me) {
       setEjected(true)
       livekitRoomRef.current?.disconnect()
@@ -844,6 +854,7 @@ export function RoomPage() {
   }
 
   async function leaveRoom() {
+    leavingRef.current = true
     stopMusicLocal()
     if (roomId && userId) {
       await supabase.from('room_members').delete().eq('room_id', roomId).eq('user_id', userId)
