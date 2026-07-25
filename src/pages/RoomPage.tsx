@@ -524,21 +524,22 @@ export function RoomPage() {
       livekitRoomRef.current = null
       stopMusicLocal()
       if (ytSyncIntervalRef.current) clearInterval(ytSyncIntervalRef.current)
-      // Android WebView can render the whole app blank after an actively
-      // playing YouTube iframe gets ripped out mid-playback (its video
-      // surface teardown isn't graceful) - stopping playback first, before
-      // destroy() removes the iframe, gives it a clean handoff instead.
-      // Both wrapped in try/catch: leaving a room must never throw and
-      // block the rest of this cleanup (channel/voice teardown above).
+      // Deliberately NOT calling ytPlayerRef.current.destroy() here. This
+      // whole component is unmounting - React is about to remove the
+      // container div (and the iframe YouTube put inside it) on its own.
+      // destroy() makes the YouTube IFrame API mutate that same DOM
+      // subtree itself, racing React's own teardown of it; the two fight
+      // over the same nodes and corrupt React's picture of the tree,
+      // throwing an uncaught "insertBefore: node is not a child of this
+      // node" that takes the whole app down to a blank screen. Letting
+      // React remove it naturally (nothing left for YouTube's script to
+      // fight over) is the actual fix - stopVideo() alone (just a
+      // postMessage to the iframe, no DOM mutation) is enough to pause
+      // playback without touching the tree.
       try {
         ytPlayerRef.current?.stopVideo?.()
       } catch {
         // Player may already be in a torn-down state - nothing to do.
-      }
-      try {
-        ytPlayerRef.current?.destroy?.()
-      } catch {
-        // Same as above.
       }
       ytPlayerRef.current = null
     }
