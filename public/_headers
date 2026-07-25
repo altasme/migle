@@ -1,0 +1,15 @@
+# Vite content-hashes every built asset filename (e.g. index-a1b2c3.js), so a
+# new deploy always produces new URLs - these can be cached by the browser
+# forever with zero staleness risk, since an old cached copy is simply never
+# requested again once the build changes.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# index.html (and every app route, which _redirects rewrites to it) must
+# NOT be cached - it's what points the browser at the current build's asset
+# hashes. Without this, Cloudflare's/the browser's default caching can serve
+# a stale index.html referencing an old, no-longer-served JS bundle after a
+# new deploy, and only a manual hard-refresh (bypassing cache entirely)
+# would ever pick up the fix - not something to rely on real users doing.
+/*
+  Cache-Control: no-cache
