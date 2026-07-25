@@ -1061,8 +1061,23 @@ export function RoomPage() {
     if (ytPlayerRef.current) return ytPlayerRef.current
     await loadYouTubeIframeApi()
     const YT = (window as unknown as { YT: any }).YT // eslint-disable-line @typescript-eslint/no-explicit-any
+    // YT.Player REPLACES the element it's given with an <iframe>, in that
+    // element's parent - not "inserts an iframe inside it". Handing it our
+    // React-managed ytContainerRef div directly leaves React holding a
+    // stale reference to a DOM node YouTube has silently swapped out from
+    // under it; the next unrelated re-render that needs to reconcile that
+    // div's siblings (host controls appearing/disappearing, anything at
+    // all) throws "insertBefore: node is not a child of this node" trying
+    // to position something relative to a node that's no longer actually
+    // there. Giving YT.Player a throwaway inner div instead - created here
+    // imperatively, never rendered or tracked by React - means only that
+    // inner div gets swapped; React's own container is never touched by
+    // anything but React itself, so it's never stale.
+    const mount = document.createElement('div')
+    mount.style.width = '100%'
+    ytContainerRef.current?.appendChild(mount)
     return new Promise((resolve) => {
-      const player = new YT.Player(ytContainerRef.current, {
+      const player = new YT.Player(mount, {
         height: '200',
         width: '100%',
         playerVars: controllable ? { rel: 0 } : { rel: 0, controls: 0, disablekb: 1 },
