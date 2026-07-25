@@ -21,6 +21,7 @@ import { Friends } from './pages/Friends'
 import { FriendProfile } from './pages/FriendProfile'
 import { BlockedUsers } from './pages/BlockedUsers'
 import { AdminReports } from './pages/AdminReports'
+import { ErrorBoundary } from './components/ErrorBoundary'
 
 function Centered({ children }: { children: ReactNode }) {
   return <div className="flex min-h-svh items-center justify-center">{children}</div>
@@ -116,7 +117,9 @@ function App() {
   return (
     <BrowserRouter>
       <div className="min-h-svh bg-zinc-950">
-        <AppShell />
+        <ErrorBoundary>
+          <AppShell />
+        </ErrorBoundary>
       </div>
     </BrowserRouter>
   )
