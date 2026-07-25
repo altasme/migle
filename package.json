@@ -13,9 +13,8 @@
   },
   "dependencies": {
     "@capacitor/android": "^8.4.2",
-    "@capacitor/app": "^8.1.1",
-    "@capacitor/browser": "^8.0.4",
     "@capacitor/core": "^8.4.2",
+    "@capgo/capacitor-social-login": "^8.3.38",
     "@supabase/supabase-js": "^2.110.2",
     "livekit-client": "^2.20.1",
     "react": "^19.2.7",

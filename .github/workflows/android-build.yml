@@ -64,6 +64,7 @@ jobs:
           VITE_LIVEKIT_URL: ${{ secrets.VITE_LIVEKIT_URL }}
           VITE_JAMENDO_CLIENT_ID: ${{ secrets.VITE_JAMENDO_CLIENT_ID }}
           VITE_YOUTUBE_API_KEY: ${{ secrets.VITE_YOUTUBE_API_KEY }}
+          VITE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.VITE_GOOGLE_WEB_CLIENT_ID }}
 
       - name: Sync web build into the native Android project
         run: npx cap sync android

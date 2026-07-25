@@ -11,7 +11,8 @@ export function AuthLanding({ onPick }: { onPick: (mode: 'signup' | 'login') => 
     setBusy(true)
     try {
       await signInWithGoogle()
-      // Success continues via the appUrlOpen deep-link handler in App.tsx.
+      // Success: signInWithIdToken() already created the session, and
+      // authStore's onAuthStateChange listener picks it up automatically.
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Google sign-in failed.')
       setBusy(false)

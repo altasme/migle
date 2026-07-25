@@ -22,17 +22,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Catches the redirect back from Google's OAuth consent screen
-                 (opened in the system browser, not this WebView - Google
-                 blocks sign-in inside embedded WebViews). Must also be
-                 registered as a Redirect URL in the Supabase dashboard. -->
-            <intent-filter android:autoVerify="false">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="com.mingleverse.app" android:host="auth-callback" />
-            </intent-filter>
-
         </activity>
 
         <provider
