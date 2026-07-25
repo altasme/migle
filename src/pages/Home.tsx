@@ -43,7 +43,7 @@ export function Home() {
             className="flex flex-col items-start gap-1 rounded-xl bg-black/20 p-3 text-left transition-transform active:scale-95"
           >
             <span className="text-2xl">💬</span>
-            <span className="text-sm font-semibold text-white">Text Chat</span>
+            <span className="text-sm font-semibold text-white">Chat</span>
             <span className="text-xs text-white/70">Match via messages</span>
           </button>
           <button
