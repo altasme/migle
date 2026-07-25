@@ -524,7 +524,22 @@ export function RoomPage() {
       livekitRoomRef.current = null
       stopMusicLocal()
       if (ytSyncIntervalRef.current) clearInterval(ytSyncIntervalRef.current)
-      ytPlayerRef.current?.destroy?.()
+      // Android WebView can render the whole app blank after an actively
+      // playing YouTube iframe gets ripped out mid-playback (its video
+      // surface teardown isn't graceful) - stopping playback first, before
+      // destroy() removes the iframe, gives it a clean handoff instead.
+      // Both wrapped in try/catch: leaving a room must never throw and
+      // block the rest of this cleanup (channel/voice teardown above).
+      try {
+        ytPlayerRef.current?.stopVideo?.()
+      } catch {
+        // Player may already be in a torn-down state - nothing to do.
+      }
+      try {
+        ytPlayerRef.current?.destroy?.()
+      } catch {
+        // Same as above.
+      }
       ytPlayerRef.current = null
     }
   }, [roomId, userId, slug])
