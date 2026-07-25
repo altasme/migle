@@ -21,11 +21,17 @@ async function ensureInitialized() {
 // Native Google Sign-In (Android Credential Manager) instead of a browser
 // redirect - this opens Google's own account-picker UI, not a browser tab,
 // so no URL or domain is ever shown to the user.
+//
+// No `scopes` option here on purpose: the plugin already requests
+// email/profile/openid by default, which is all we need for the ID token.
+// Passing a custom `scopes` array makes the native Android provider require
+// a modified MainActivity (a bigger native-code change) that we don't need
+// - leaving it out avoids that requirement entirely.
 export async function signInWithGoogle() {
   await ensureInitialized()
   const { result } = await SocialLogin.login({
     provider: 'google',
-    options: { scopes: ['email', 'profile'] },
+    options: {},
   })
   if (result.responseType !== 'online' || !result.idToken) {
     throw new Error('Google did not return an ID token.')
