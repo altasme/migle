@@ -22,6 +22,21 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Catches the redirect back from an OAuth provider's consent
+                 screen (opened in the system browser - Facebook has no
+                 native Android sign-in path that works with Supabase the
+                 way Google's Credential Manager flow does). Must also be
+                 registered as a Redirect URL in the Supabase dashboard.
+                 Provider-agnostic: any provider using Supabase's OAuth
+                 redirect flow (Facebook now, Discord later if added) shares
+                 this same callback. -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.mingleverse.app" android:host="auth-callback" />
+            </intent-filter>
+
         </activity>
 
         <provider
