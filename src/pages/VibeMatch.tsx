@@ -20,6 +20,7 @@ import {
   type MatchMessage,
   type MatchPreferences,
 } from '../lib/match'
+import { openFriendChat } from '../lib/friends'
 
 type Phase = 'select' | 'waiting' | 'matched' | 'partner-left' | 'time-up' | 'no-match'
 type Partner = { id: string; username: string; equipped: Record<string, string> }
@@ -88,6 +89,7 @@ export function VibeMatch() {
   const audioContainerRef = useRef<HTMLDivElement | null>(null)
   const livekitRoomRef = useRef<Room | null>(null)
   const timeoutHandledRef = useRef(false)
+  const chatTransitionStartedRef = useRef(false)
 
   const iAmA = session?.user_a === userId
   const iLiked = iAmA ? likes.liked_a : likes.liked_b
@@ -458,6 +460,29 @@ export function VibeMatch() {
     }
   }
 
+  // Text matches that turn into a mutual like shouldn't stay stuck in the
+  // ephemeral match view (tied to a session that eventually gets cleaned
+  // up) - they're friends now, so the conversation continues in the same
+  // persistent chat a friend gets from the Friends list. Voice matches
+  // aren't a text conversation to hand off, so this is text-only. Keyed
+  // off bothLiked (not justBecameFriends, which only fires for whichever
+  // side's own tap completed the match) so it fires for both people.
+  useEffect(() => {
+    if (!bothLiked || !session || session.mode !== 'text' || !partner) return
+    if (chatTransitionStartedRef.current) return
+    chatTransitionStartedRef.current = true
+    const t = setTimeout(async () => {
+      try {
+        const threadId = await openFriendChat(partner.id)
+        await endMatch(session.id).catch(() => {})
+        navigate(`/dm/${threadId}`)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Something went wrong.')
+      }
+    }, 1200)
+    return () => clearTimeout(t)
+  }, [bothLiked, session, partner, navigate])
+
   async function handleNext() {
     if (!session) return
     setMessages([])
@@ -572,7 +597,7 @@ export function VibeMatch() {
               💬
             </span>
             <span>
-              <span className="block font-semibold text-white">Text Chat</span>
+              <span className="block font-semibold text-white">Chat</span>
               <span className="block text-xs text-white/70">Match and chat via messages</span>
             </span>
           </button>

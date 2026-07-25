@@ -9,7 +9,7 @@ function VibeMatchMockup() {
     <div className="rounded-2xl bg-gradient-to-br from-purple-600 to-pink-600 p-3 shadow-lg shadow-purple-950/30">
       <p className="text-xs font-semibold text-white">✨ Start Mingling</p>
       <div className="mt-2 grid grid-cols-2 gap-2">
-        <div className="rounded-lg bg-black/20 p-2 text-center text-[10px] font-medium text-white">💬 Text Chat</div>
+        <div className="rounded-lg bg-black/20 p-2 text-center text-[10px] font-medium text-white">💬 Chat</div>
         <div className="rounded-lg bg-black/20 p-2 text-center text-[10px] font-medium text-white">🎤 Voice Chat</div>
       </div>
     </div>
