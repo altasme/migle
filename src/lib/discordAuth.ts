@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core'
 import { Browser } from '@capacitor/browser'
 import { supabase } from './supabase'
 
@@ -15,7 +16,21 @@ export const OAUTH_REDIRECT_URL = 'com.mingleverse.app://auth-callback'
 // Facebook: Discord's OAuth app just needs a Client ID/Secret from their
 // developer portal, no business verification or app review required for
 // basic login scopes.
+//
+// The deep-link callback only exists inside the installed native app -
+// there's no app registered for a custom com.mingleverse.app:// scheme in
+// a plain desktop/mobile browser tab, so testing this in a browser would
+// otherwise open Discord's page and then hang forever waiting for a
+// redirect that can never arrive. On web, skip the native dance entirely
+// and let Supabase do an ordinary full-page redirect back to this same
+// origin instead - supabase.ts's detectSessionInUrl picks the session up
+// from the URL when Discord sends the browser back.
 export async function signInWithDiscord() {
+  if (!Capacitor.isNativePlatform()) {
+    const { error } = await supabase.auth.signInWithOAuth({ provider: 'discord' })
+    if (error) throw error
+    return
+  }
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'discord',
     options: {
