@@ -88,6 +88,18 @@ export function AuthLanding() {
         </button>
 
         <OAuthRow />
+
+        <p className="mt-1 text-center text-[11px] text-zinc-500">
+          By continuing, you agree to our{' '}
+          <a href="/terms.html" target="_blank" rel="noopener noreferrer" className="underline hover:text-zinc-300">
+            Terms of Service
+          </a>{' '}
+          and{' '}
+          <a href="/privacy.html" target="_blank" rel="noopener noreferrer" className="underline hover:text-zinc-300">
+            Privacy Policy
+          </a>
+          .
+        </p>
       </div>
     </div>
   )
