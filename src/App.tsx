@@ -1,9 +1,10 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
 import { AuthLanding } from './components/AuthLanding'
 import { registerOAuthDeepLink } from './lib/discordAuth'
 import { SplashScreen } from './components/SplashScreen'
+import { WelcomeStep } from './components/WelcomeStep'
 import { UsernameClaim } from './components/UsernameClaim'
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow'
 import { AppLayout } from './components/AppLayout'
@@ -30,6 +31,7 @@ function Centered({ children }: { children: ReactNode }) {
 
 function AppShell() {
   const { session, profile, loading, init } = useAuthStore()
+  const [welcomed, setWelcomed] = useState(false)
 
   useEffect(() => {
     init()
@@ -53,6 +55,9 @@ function AppShell() {
   }
 
   if (!profile) {
+    if (!welcomed) {
+      return <WelcomeStep onNext={() => setWelcomed(true)} />
+    }
     return (
       <Centered>
         <UsernameClaim />
