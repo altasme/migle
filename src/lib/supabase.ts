@@ -21,12 +21,16 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    // PKCE with detectSessionInUrl off: the Discord OAuth redirect comes
-    // back through a native deep link (see lib/discordAuth.ts), not the
-    // WebView's own address bar, so there's no URL for supabase-js to
-    // auto-detect a session in - the deep link handler exchanges the code
-    // explicitly.
+    // PKCE for both OAuth paths (see lib/discordAuth.ts): in the native
+    // app, Discord's redirect comes back through a custom-scheme deep
+    // link, never touching the WebView's own address bar, so
+    // detectSessionInUrl has nothing to find there and safely no-ops. On
+    // plain web there's no native shell to catch a deep link at all, so
+    // that path does an ordinary full-page redirect instead - and THAT is
+    // exactly what detectSessionInUrl is for, picking the session back up
+    // from the URL Discord/Supabase send the browser back to. Needs to
+    // stay on for the web path to work at all.
     flowType: 'pkce',
-    detectSessionInUrl: false,
+    detectSessionInUrl: true,
   },
 })
