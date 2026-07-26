@@ -27,7 +27,14 @@ export const OAUTH_REDIRECT_URL = 'com.mingleverse.app://auth-callback'
 // from the URL when Discord sends the browser back.
 export async function signInWithDiscord() {
   if (!Capacitor.isNativePlatform()) {
-    const { error } = await supabase.auth.signInWithOAuth({ provider: 'discord' })
+    // Explicit redirectTo instead of relying on Supabase's dashboard
+    // "Site URL" default - that's easy to leave pointed at a placeholder
+    // (e.g. localhost) and get silently redirected somewhere broken after
+    // login succeeds. Always come back to wherever this page actually is.
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'discord',
+      options: { redirectTo: window.location.origin },
+    })
     if (error) throw error
     return
   }
