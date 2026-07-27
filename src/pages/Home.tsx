@@ -39,7 +39,7 @@ export function Home() {
         <p className="mt-1 text-sm text-white/80">Meet someone new. Start a conversation in seconds.</p>
         <div className="relative mt-4 grid grid-cols-2 gap-3">
           <button
-            onClick={() => navigate('/vibematch', { state: { mode: 'text' } })}
+            onClick={() => navigate('/vibematch')}
             className="flex flex-col items-start gap-1 rounded-xl bg-black/20 p-3 text-left transition-transform active:scale-95"
           >
             <span className="text-2xl">💬</span>
@@ -47,7 +47,7 @@ export function Home() {
             <span className="text-xs text-white/70">Match via messages</span>
           </button>
           <button
-            onClick={() => navigate('/vibematch', { state: { mode: 'voice' } })}
+            onClick={() => navigate('/vibematch')}
             className="flex flex-col items-start gap-1 rounded-xl bg-black/20 p-3 text-left transition-transform active:scale-95"
           >
             <span className="text-2xl">🎤</span>

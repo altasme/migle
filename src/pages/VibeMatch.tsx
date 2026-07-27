@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Room, RoomEvent, Track } from 'livekit-client'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
@@ -21,9 +21,16 @@ import {
   type MatchPreferences,
 } from '../lib/match'
 import { openFriendChat } from '../lib/friends'
+import { emojiFor } from '../lib/tags'
 
 type Phase = 'select' | 'waiting' | 'matched' | 'partner-left' | 'time-up' | 'no-match'
-type Partner = { id: string; username: string; equipped: Record<string, string> }
+type Partner = {
+  id: string
+  username: string
+  equipped: Record<string, string>
+  interests: string[]
+  personality_traits: string[]
+}
 
 const WAITING_POLL_MS = 2500
 const STATE_POLL_MS = 3000
@@ -53,7 +60,6 @@ function formatCountdown(secondsLeft: number) {
 
 export function VibeMatch() {
   const navigate = useNavigate()
-  const location = useLocation()
   const userId = useAuthStore((s) => s.session?.user.id)
 
   const [phase, setPhase] = useState<Phase>('select')
@@ -110,17 +116,6 @@ export function VibeMatch() {
     getMyVoiceMinglesRemaining().then(setVoiceMinglesLeft).catch(() => {})
   }, [])
 
-  // Home's Text/Voice tiles skip the select screen and jump straight into
-  // a search, passed via navigation state rather than a URL param since
-  // it's a one-time trigger, not a shareable/bookmarkable page state.
-  useEffect(() => {
-    const autoMode = (location.state as { mode?: 'text' | 'voice' } | null)?.mode
-    if (autoMode === 'text' || autoMode === 'voice') {
-      startSearching(autoMode)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
   // Leaving the page mid-search or mid-match tears things down — matches
   // are ephemeral, not a persistent conversation to come back to.
   useEffect(() => {
@@ -138,7 +133,7 @@ export function VibeMatch() {
     const partnerId = s.user_a === userId ? s.user_b : s.user_a
     const { data } = await supabase
       .from('profiles')
-      .select('id, username, equipped')
+      .select('id, username, equipped, interests, personality_traits')
       .eq('id', partnerId)
       .maybeSingle()
     setPartner(data)
@@ -473,7 +468,7 @@ export function VibeMatch() {
     chatTransitionStartedRef.current = true
     const t = setTimeout(async () => {
       try {
-        const threadId = await openFriendChat(partner.id)
+        const threadId = await openFriendChat(partner.id, session.id)
         await endMatch(session.id).catch(() => {})
         navigate(`/dm/${threadId}`)
       } catch (err) {
@@ -724,6 +719,27 @@ export function VibeMatch() {
           </span>
         )}
       </div>
+
+      {partner && (partner.interests.length > 0 || partner.personality_traits.length > 0) && (
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {partner.interests.map((i) => (
+            <span
+              key={`i-${i}`}
+              className="rounded-full border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[11px] text-zinc-300"
+            >
+              {emojiFor(i)} {i}
+            </span>
+          ))}
+          {partner.personality_traits.map((p) => (
+            <span
+              key={`p-${p}`}
+              className="rounded-full border border-purple-800/50 bg-purple-950/30 px-2 py-0.5 text-[11px] text-purple-300"
+            >
+              {emojiFor(p)} {p}
+            </span>
+          ))}
+        </div>
+      )}
 
       {justBecameFriends && (
         <div className="mb-3 rounded-lg bg-pink-950/40 px-3 py-2 text-center text-sm text-pink-300">
