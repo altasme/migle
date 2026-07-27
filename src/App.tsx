@@ -1,8 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Route, Routes, useNavigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
 import { AuthLanding } from './components/AuthLanding'
 import { registerOAuthDeepLink } from './lib/discordAuth'
+import { registerPushNotifications } from './lib/pushNotifications'
 import { SplashScreen } from './components/SplashScreen'
 import { WelcomeStep } from './components/WelcomeStep'
 import { UsernameClaim } from './components/UsernameClaim'
@@ -32,6 +33,7 @@ function Centered({ children }: { children: ReactNode }) {
 function AppShell() {
   const { session, profile, loading, init } = useAuthStore()
   const [welcomed, setWelcomed] = useState(false)
+  const navigate = useNavigate()
 
   useEffect(() => {
     init()
@@ -45,6 +47,15 @@ function AppShell() {
       handle.then((h) => h.remove())
     }
   }, [])
+
+  // Only once there's a real profile to attach the device token to.
+  useEffect(() => {
+    if (!profile) return
+    const cleanup = registerPushNotifications(profile.id, navigate)
+    return () => {
+      cleanup.then((remove) => remove())
+    }
+  }, [profile?.id, navigate])
 
   if (loading) {
     return <SplashScreen />
