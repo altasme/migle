@@ -17,15 +17,10 @@ export function WelcomeStep({ onNext }: { onNext: () => void }) {
       <img src="/welcome-bg.jpg" alt="" className="fixed inset-0 -z-10 h-full w-full object-cover" />
 
       <div className="relative mx-auto flex w-full max-w-sm flex-col items-center gap-6 px-6 pb-10 pt-[max(2rem,env(safe-area-inset-top))] text-center">
-        {/* Hero: Ming standing on the background's island, speech bubble
-            above her head. Sized/positioned relative to this block rather
-            than the whole viewport, so it holds up across phone heights. */}
+        {/* Hero: Ming standing on the background's island. Sized/positioned
+            relative to this block rather than the whole viewport, so it
+            holds up across phone heights. */}
         <div className="relative flex min-h-[46vh] w-full flex-col items-center justify-end">
-          <div className="absolute left-2 top-4 max-w-[11rem] rounded-2xl border border-purple-500/50 bg-zinc-950/70 px-3 py-2 text-left text-sm font-medium text-purple-200 backdrop-blur-sm">
-            Your adventure starts here! 💜
-            <span className="absolute -bottom-1.5 left-6 h-3 w-3 rotate-45 border-b border-r border-purple-500/50 bg-zinc-950/70" />
-          </div>
-
           <div className="relative">
             <div className="absolute bottom-2 left-1/2 h-6 w-28 -translate-x-1/2 rounded-full bg-purple-950/40 blur-xl" />
             <img
