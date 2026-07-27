@@ -38,8 +38,16 @@ export async function getFriendCount(userId: string): Promise<number> {
   return count ?? 0
 }
 
-export async function openFriendChat(friendId: string): Promise<string> {
-  const { data, error } = await supabase.rpc('open_friend_chat', { p_friend: friendId })
+// matchSessionId: when a text match turns into a mutual like, the RPC
+// carries that session's messages into the (newly created) thread instead
+// of starting it empty. Only has an effect the one time it actually
+// creates the thread - a no-op extra param for the plain Friends-list
+// "chat" button, which has no match session to pass.
+export async function openFriendChat(friendId: string, matchSessionId?: string): Promise<string> {
+  const { data, error } = await supabase.rpc('open_friend_chat', {
+    p_friend: friendId,
+    p_match_session: matchSessionId ?? null,
+  })
   if (error) throw error
   return data.thread_id as string
 }
