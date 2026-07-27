@@ -62,4 +62,11 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <!-- Required on Android 13+ (targetSdk 36 here) before the app can post
+         ANY system notification, including one FCM successfully delivered -
+         without this declared, the OS silently drops it rather than
+         prompting or erroring, which is why push notifications never
+         showed up even though everything server-side was working. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>
