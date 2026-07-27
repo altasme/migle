@@ -15,12 +15,6 @@ dist-ssr
 .env.*
 !.env.example
 
-# Firebase config (FCM push notification credentials) - not secret in the
-# strict sense (it's baked into every installed APK anyway) but keeping it
-# out of git means the Android build stays broken-by-default in any fork
-# instead of silently shipping to someone else's Firebase project.
-android/app/google-services.json
-
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
