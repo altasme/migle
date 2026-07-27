@@ -31,7 +31,7 @@ create extension if not exists pg_net;
 
 -- The send-push Edge Function's URL and the shared secret it checks live
 -- in Vault, not in this file - both get set once via:
---   select vault.create_secret('https://<project-ref>.functions.supabase.co/send-push', 'push_function_url');
+--   select vault.create_secret('https://<project-ref>.supabase.co/functions/v1/send-push', 'push_function_url');
 --   select vault.create_secret('<random-string>', 'push_webhook_secret');
 -- (also set PUSH_WEBHOOK_SECRET to the same random string as a secret on
 -- the send-push function itself). Until both exist this silently no-ops
