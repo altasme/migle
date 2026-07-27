@@ -1,9 +1,9 @@
 import { Capacitor } from '@capacitor/core'
 import { supabase } from './supabase'
 
-// Real-time pushes only (new message, new friend, hangout invite) - see
-// migration 041. No promotional/re-engagement notifications yet; that's a
-// later, larger piece once there's usage data to know which copy works.
+// Real-time pushes (new message, new friend, hangout invite - migration
+// 041) plus the 7-day re-engagement campaign (migration 042). Both kinds
+// arrive through the same FCM token and the same tap handler below.
 //
 // Call once at app startup, same pattern as registerOAuthDeepLink in
 // discordAuth.ts: dynamic import so the native plugin never touches the
@@ -37,6 +37,7 @@ export async function registerPushNotifications(
       if (data.type === 'dm' && data.thread_id) navigate(`/dm/${data.thread_id}`)
       else if (data.type === 'friend' && data.friend_id) navigate(`/friend/${data.friend_id}`)
       else if (data.type === 'hangout' && data.room_slug) navigate(`/r/${data.room_slug}`)
+      else if (data.type === 'promo') navigate('/vibematch')
     }),
   ])
 

@@ -1,8 +1,9 @@
-// Sends a push notification via FCM's HTTP v1 API. Called by pg_net
-// triggers on dm_messages/friendships/room_invites inserts (see migration
-// 041) with a shared secret header, never by a client directly - there's
-// no user JWT here, just a server-to-server call, so it uses the service
-// role key to read push_tokens/profiles across all users.
+// Sends a push notification via FCM's HTTP v1 API. Called two ways, both
+// server-to-server with a shared secret header, never by a client
+// directly: pg_net triggers on dm_messages/friendships/room_invites
+// inserts (migration 041), and the pg_cron promo sweep (migration 042).
+// No user JWT in either case, so this uses the service role key to read
+// push_tokens/profiles across all users.
 //
 //   supabase functions deploy send-push
 //
@@ -15,7 +16,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-type Kind = 'dm_message' | 'new_friend' | 'room_invite';
+type Kind = 'dm_message' | 'new_friend' | 'room_invite' | 'promo';
 
 type Notification = {
   recipientId: string;
@@ -123,6 +124,19 @@ async function buildNotifications(
       body: `You and ${byId.get(otherOf(recipientId)) ?? 'someone new'} are now friends`,
       data: { type: 'friend', friend_id: otherOf(recipientId) },
     }));
+  }
+
+  if (kind === 'promo') {
+    // Title/body are already resolved server-side by run_promo_push_sweep()
+    // (picked from push_promo_copy) - nothing to look up here.
+    return [
+      {
+        recipientId: payload.recipient_id,
+        title: payload.title,
+        body: payload.body,
+        data: { type: 'promo' },
+      },
+    ];
   }
 
   // room_invite
