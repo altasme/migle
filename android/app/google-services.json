@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "743840479909",
+    "project_id": "mingleverse-1bdab",
+    "storage_bucket": "mingleverse-1bdab.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:743840479909:android:0a129ed4d1d1320bd36b4c",
+        "android_client_info": {
+          "package_name": "com.mingleverse.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDzy94ayGpO1fbMebpN66BFZX3zrjiRDGI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

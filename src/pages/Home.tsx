@@ -33,29 +33,17 @@ export function Home() {
         </div>
       </div>
 
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-600 to-pink-600 p-5 shadow-lg shadow-purple-950/40">
+      <button
+        onClick={() => navigate('/vibematch')}
+        className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-600 to-pink-600 p-5 text-left shadow-lg shadow-purple-950/40 transition-transform active:scale-[0.98]"
+      >
         <div className="pointer-events-none absolute -right-6 -top-6 h-28 w-28 rounded-full bg-white/10 blur-2xl" />
         <p className="text-lg font-semibold text-white">✨ Start Mingling</p>
-        <p className="mt-1 text-sm text-white/80">Meet someone new. Start a conversation in seconds.</p>
-        <div className="relative mt-4 grid grid-cols-2 gap-3">
-          <button
-            onClick={() => navigate('/vibematch')}
-            className="flex flex-col items-start gap-1 rounded-xl bg-black/20 p-3 text-left transition-transform active:scale-95"
-          >
-            <span className="text-2xl">💬</span>
-            <span className="text-sm font-semibold text-white">Chat</span>
-            <span className="text-xs text-white/70">Match via messages</span>
-          </button>
-          <button
-            onClick={() => navigate('/vibematch')}
-            className="flex flex-col items-start gap-1 rounded-xl bg-black/20 p-3 text-left transition-transform active:scale-95"
-          >
-            <span className="text-2xl">🎤</span>
-            <span className="text-sm font-semibold text-white">Voice Chat</span>
-            <span className="text-xs text-white/70">Talk face to face</span>
-          </button>
-        </div>
-      </div>
+        <p className="mt-1 text-sm text-white/80">Meet someone new. Pick chat or voice on the next screen.</p>
+        <span className="relative mt-4 inline-flex items-center gap-2 rounded-xl bg-black/20 px-4 py-2.5 text-sm font-semibold text-white">
+          Get started →
+        </span>
+      </button>
 
       <HangoutInvites />
       <HangoutPanel />
