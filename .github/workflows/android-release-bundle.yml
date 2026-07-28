@@ -1,0 +1,81 @@
+name: Android release bundle
+
+# Builds the signed .aab you actually upload to Play Console. Separate from
+# android-build.yml (which produces an unsigned, sideloadable debug APK on
+# every push) - a release bundle needs the upload keystore, so it only runs
+# on manual trigger, not automatically on every push.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install web dependencies
+        run: npm ci
+
+      # Same check as android-build.yml, plus the release signing secrets -
+      # a missing signing secret would otherwise silently produce an
+      # unsigned .aab that Play Console rejects on upload.
+      - name: Check required secrets
+        run: |
+          missing=0
+          [ -z "${{ secrets.VITE_SUPABASE_URL }}" ] && echo "::error::Repo secret VITE_SUPABASE_URL is not set" && missing=1
+          [ -z "${{ secrets.VITE_SUPABASE_ANON_KEY }}" ] && echo "::error::Repo secret VITE_SUPABASE_ANON_KEY is not set" && missing=1
+          [ -z "${{ secrets.VITE_LIVEKIT_URL }}" ] && echo "::error::Repo secret VITE_LIVEKIT_URL is not set" && missing=1
+          [ -z "${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}" ] && echo "::error::Repo secret ANDROID_RELEASE_KEYSTORE_BASE64 is not set - see docs/android-release-signing.md" && missing=1
+          [ -z "${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}" ] && echo "::error::Repo secret ANDROID_RELEASE_STORE_PASSWORD is not set" && missing=1
+          [ -z "${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}" ] && echo "::error::Repo secret ANDROID_RELEASE_KEY_ALIAS is not set" && missing=1
+          [ -z "${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}" ] && echo "::error::Repo secret ANDROID_RELEASE_KEY_PASSWORD is not set" && missing=1
+          if [ "$missing" = "1" ]; then
+            echo "::error::Add the missing secrets under Settings -> Secrets and variables -> Actions, then re-run this workflow."
+            exit 1
+          fi
+
+      - name: Build web app
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_LIVEKIT_URL: ${{ secrets.VITE_LIVEKIT_URL }}
+          VITE_JAMENDO_CLIENT_ID: ${{ secrets.VITE_JAMENDO_CLIENT_ID }}
+          VITE_YOUTUBE_API_KEY: ${{ secrets.VITE_YOUTUBE_API_KEY }}
+          VITE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.VITE_GOOGLE_WEB_CLIENT_ID }}
+
+      - name: Sync web build into the native Android project
+        run: npx cap sync android
+
+      # Decoded into the runner's temp dir, never into the repo checkout -
+      # this file must not end up in a build artifact or a committed path.
+      - name: Decode release keystore
+        run: echo "${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
+
+      - name: Build release bundle
+        working-directory: android
+        run: |
+          ./gradlew bundleRelease \
+            -PRELEASE_STORE_FILE="$RUNNER_TEMP/release.keystore" \
+            -PRELEASE_STORE_PASSWORD="${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}" \
+            -PRELEASE_KEY_ALIAS="${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}" \
+            -PRELEASE_KEY_PASSWORD="${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}"
+
+      - name: Remove decoded keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.keystore"
+
+      - name: Upload .aab
+        uses: actions/upload-artifact@v4
+        with:
+          name: mingleverse-release-bundle
+          path: android/app/build/outputs/bundle/release/app-release.aab
