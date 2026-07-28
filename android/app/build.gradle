@@ -31,6 +31,20 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        // Populated only when RELEASE_STORE_FILE is passed as a Gradle
+        // property (-P, or ~/.gradle/gradle.properties locally, or repo
+        // secrets in CI - see .github/workflows/android-release-bundle.yml).
+        // Never hardcode real values here or commit a release keystore -
+        // this is the upload key Play Console pins to your app; unlike the
+        // debug key there's no throwaway equivalent.
+        if (project.hasProperty('RELEASE_STORE_FILE')) {
+            release {
+                storeFile file(RELEASE_STORE_FILE)
+                storePassword RELEASE_STORE_PASSWORD
+                keyAlias RELEASE_KEY_ALIAS
+                keyPassword RELEASE_KEY_PASSWORD
+            }
+        }
     }
     buildTypes {
         debug {
@@ -39,6 +53,9 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (project.hasProperty('RELEASE_STORE_FILE')) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }
