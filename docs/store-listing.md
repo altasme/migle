@@ -3,46 +3,54 @@
 Positioning note: we do not market Mingle as a dating app. Copy leads with
 friendship/connection language throughout — see CLAUDE.md Part 1.
 
-Revision note (2026-07-28): rewritten against docs/SPEC.md so it only
-promises what's actually live — the coins/cosmetics economy is currently
-hidden behind `ECONOMY_ENABLED = false` (see SPEC.md), so the previous
-draft's "earn coins" section got cut. Rewritten for CTR: opens on the
-loneliness/disconnection feeling rather than a feature list, since that's
-the emotional reason someone downloads this in the first place.
+Revision history:
+- 2026-07-28 (v2): rewritten against docs/SPEC.md so it only promises
+  what's actually live — the coins/cosmetics economy is currently hidden
+  behind `ECONOMY_ENABLED = false` (see SPEC.md), so any "earn coins"
+  copy got cut for now. Add it back once that flag flips.
+- 2026-07-28 (v3, current): v2 leaned literary/melancholy — nice tone,
+  weaker sell. Rewritten for scan-and-convert: a punchy hook up top,
+  short emoji-anchored feature bullets people can skim in the store
+  listing (not paragraphs), urgency in the short description, and a
+  direct CTA at the close. Same features, same honesty about what's
+  built, harder pitch.
 
 ## Short description (max 80 characters)
 
 ```
-Feeling lonely? Talk to someone real right now. Make a true friend.
+Bored of swiping? Talk to someone real in seconds. Make a friend now.
 ```
-(67 characters)
+(69 characters)
 
 ## Full description (max 4000 characters)
 
 ```
-Some nights, the loneliest thing isn't being alone — it's being surrounded by people online and still feeling invisible. Endless feeds. Strangers you'll never actually talk to. Likes that don't feel like anything.
+Stop scrolling. Start talking. 👋
 
-Mingle is different. Open the app, and in seconds you're talking to a real person — by text or by voice. No profile to judge, no feed to scroll past. Just a conversation, right now, with someone who's looking for the same thing you are: to feel a little less alone.
+No swiping through hundreds of profiles. No perfecting a bio nobody reads. Just open Mingle and you're talking to a real person in seconds — by text or by voice. That's it. That's the whole app.
 
-TALK TO SOMEONE REAL, INSTANTLY
-Pick text or voice. Mingle matches you with a real person in seconds — not a bot, not a filtered photo, an actual conversation. If it's not clicking, tap Next and you're talking to someone else immediately. No awkward goodbyes.
+⚡ MATCHED IN SECONDS, NOT MINUTES
+Pick text or voice. Mingle instantly connects you with someone real. Not vibing? Tap Next and you're talking to someone else immediately — no explaining, no awkward exit.
 
-WHEN IT CLICKS, KEEP IT
-Had a real moment with someone? Add them as a friend. When they add you back, that connection is yours to keep — chat history, voice calls, and a friendship that doesn't disappear when you close the app.
+💬 REAL CONVERSATIONS > FAKE PROFILES
+No filters, no curated feed, no guessing if the photo is real. Just you and another person, talking right now. This is what meeting people used to feel like.
 
-A YOU THAT'S ACTUALLY YOU
-Build a pixel avatar that's really yours — hair, eyes, skin tone, outfit, accessories. It's the face people will recognize every time you match, hang out, or make a new friend.
+🤝 CLICKED? MAKE IT PERMANENT
+Both hit Add Friend and you're locked in for good — chat history saved, voice calls whenever, and a real friendship that doesn't vanish when you close the app.
 
-A PLACE THAT'S JUST YOURS
-Once someone's your friend, invite them into a private hangout — just the two of you, or your whole circle. Talk, hang out, watch something together, sing along in karaoke. No strangers, no audience. Just people you actually know.
+🎮 YOUR OWN PRIVATE SPACE
+Once you're friends, pull them into a private hangout — just your circle, zero strangers. Talk, hang out, watch something together, or go head-to-head in karaoke.
 
-YOU'RE ALWAYS IN CONTROL
-Every single match gives you Add Friend, Next, Block, and Report — right there on screen, never hidden in a menu. Blocks are permanent. Reports get reviewed by real people. Nobody should have to feel unsafe to feel less alone, and we built Mingle so you never have to choose.
+🎨 BE RECOGNIZABLE
+Build a pixel avatar that's actually yours — hair, eyes, skin, outfit, the works. It's the face people remember when they match with you again.
 
-Mingle is for adults 18 and up.
+🛡️ YOU'RE ALWAYS IN CONTROL
+Add Friend, Next, Block, Report — on screen every single match, never buried in settings. Blocks are permanent. Reports get reviewed by real people. Feeling safe isn't optional here, it's the default.
 
-You don't need the perfect opener. You don't need a perfect profile. You just need to say hi.
+No perfect opener needed. No profile to stress over. Just say hi and see what happens.
 
-Meet someone in seconds. Keep the connection if it matters.
+Download free. Talk now. Make a friend tonight.
+
+Mingle is for adults 18+.
 ```
-(~1,940 characters — well within the 4000 limit, leaves room to expand later)
+(~1,600 characters — well within the 4000 limit, leaves room to expand later)
